@@ -1,26 +1,17 @@
 /**
- * Firebase Configuration
- * ────────────────────────────────────────────────────────────────────────────
- * SETUP INSTRUCTIONS (one time):
- *  1. Go to https://console.firebase.google.com
- *  2. Create a project (or use existing)
- *  3. Project Settings → Add App → Web App
- *  4. Copy the firebaseConfig object values into the fields below
- *  5. In Firebase Console → Authentication → Sign-in method → Enable:
- *       • Google
- *       • Email/Password
- *  6. In Firebase Console → Firestore → Create database (start in test mode)
- * ────────────────────────────────────────────────────────────────────────────
+ * Firebase Configuration — DotsAndBox project
+ * Project: dotsandbox-6005e
  */
 
 export const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey:            "AIzaSyDOMvVmwu716oRX8BNIynZXT5JgJXUUHto",
+  authDomain:        "dotsandbox-6005e.firebaseapp.com",
+  projectId:         "dotsandbox-6005e",
+  storageBucket:     "dotsandbox-6005e.firebasestorage.app",
+  messagingSenderId: "939927590924",
+  appId:             "1:939927590924:web:40e364eee9d26db93df629",
+  measurementId:     "G-WSHYSRSBHN"
 };
 
-// Set to true once you have filled in real values above.
-export const FIREBASE_CONFIGURED = false;
+// Firebase is now configured — Google & Email/Password auth are active.
+export const FIREBASE_CONFIGURED = true;

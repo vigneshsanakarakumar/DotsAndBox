@@ -64,14 +64,21 @@ class AuthManager extends EventTarget {
 
     this._fbInitPromise = (async () => {
       try {
-        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+        const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
         const { getAuth, signInWithPopup, signInWithEmailAndPassword,
                 createUserWithEmailAndPassword, GoogleAuthProvider,
                 signOut, onAuthStateChanged }
           = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
 
-        this.firebaseApp  = initializeApp(firebaseConfig);
+        // Avoid double-init if module is hot-reloaded
+        this.firebaseApp  = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         this.firebaseAuth = getAuth(this.firebaseApp);
+
+        // Initialize Analytics (non-blocking, optional)
+        try {
+          const { getAnalytics } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js');
+          getAnalytics(this.firebaseApp);
+        } catch (e) { /* analytics not critical */ }
 
         // Expose sign helpers
         this._signInGoogle = () => signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
@@ -79,9 +86,22 @@ class AuthManager extends EventTarget {
         this._signUpEmail  = (e, p) => createUserWithEmailAndPassword(this.firebaseAuth, e, p);
         this._signOut      = () => signOut(this.firebaseAuth);
 
+        // onAuthStateChanged fires on load — if Firebase already has a session,
+        // auto-restore the user profile without requiring a new login.
         return new Promise(resolve => {
           onAuthStateChanged(this.firebaseAuth, fbUser => {
-            if (!this._ready) { this._ready = true; resolve(fbUser); }
+            if (!this._ready) {
+              this._ready = true;
+              if (fbUser) {
+                // Try to restore stored profile for this UID
+                const existing = this.getProfileByUid(fbUser.uid);
+                if (existing && !this.currentUser) {
+                  this.currentUser = existing;
+                  saveSession(existing);
+                }
+              }
+              resolve(fbUser);
+            }
           });
         });
       } catch (err) {
