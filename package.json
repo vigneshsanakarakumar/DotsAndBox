@@ -1,0 +1,13 @@
+{
+  "name": "dots-and-boxes",
+  "version": "1.0.0",
+  "description": "7x7 Dots and Boxes web game with clean SVG rendering and AI",
+  "type": "module",
+  "main": "index.html",
+  "scripts": {
+    "test": "node test/gameLogic.test.js"
+  },
+  "keywords": ["dots-and-boxes", "game", "javascript", "svg"],
+  "author": "Vignesh",
+  "license": "MIT"
+}
