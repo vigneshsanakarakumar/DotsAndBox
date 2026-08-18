@@ -104,6 +104,52 @@ class SoundEffects {
     }
   }
 
+  playTimerTick() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.audioCtx) return;
+
+    try {
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(800, this.audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.08, this.audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.05);
+
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc.start();
+      osc.stop(this.audioCtx.currentTime + 0.05);
+    } catch (e) {}
+  }
+
+  playTimeout() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.audioCtx) return;
+
+    try {
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, this.audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(160, this.audioCtx.currentTime + 0.3);
+
+      gain.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc.start();
+      osc.stop(this.audioCtx.currentTime + 0.3);
+    } catch (e) {}
+  }
+
   toggleMute() {
     this.isMuted = !this.isMuted;
     return this.isMuted;

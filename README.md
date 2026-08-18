@@ -14,18 +14,26 @@ A modern, responsive, and visually polished **Dots and Boxes** web game built wi
   - $8 \times 8$ Dots (64 intersection dots)
   - $7 \times 7$ Boxes (49 total boxes)
   - 112 Selectable Lines (56 horizontal + 56 vertical)
+- **⏱️ 20-Second Turn Timer**:
+  - Each player has 20 seconds to choose a line.
+  - Color-shifting visual progress bar (Green $\rightarrow$ Amber $\rightarrow$ Red warning pulse).
+  - If 20s expires without a move, the turn is automatically skipped and given to the opponent.
+  - Completing a box resets the timer back to 20s for the extra turn.
+- **🌐 Real-Time Online Multiplayer**:
+  - Peer-to-peer WebRTC matchmaking via 6-digit room codes (e.g. `BOX-8492`).
+  - Play live across separate devices or browser tabs with zero server lag.
+- **👤 JSON-Based Login & Player Profiles**:
+  - Username customisation and avatar emoji selector (⚡, 🚀, 👑, 👾, etc.).
+  - Win/Loss stats and match history stored in JSON format.
 - **Extra Turn Mechanic**:
   - Completing 1 box $\rightarrow$ $+1$ point and **1 extra turn**.
   - Completing 2 boxes (with one shared line) $\rightarrow$ $+2$ points and **exactly 1 extra turn**.
   - Completing 0 boxes $\rightarrow$ Turn passes to the other player.
-- **Multiple Game Modes**:
+- **Game Modes**:
+  - 🌐 **Online Multiplayer (Live Room Code)**
   - 👥 **2-Player Local (Pass & Play)**
   - 🤖 **vs AI (Casual)**
-  - 🧠 **vs AI (Smart)**: Avoids giving away 3-sided boxes and seizes box-completion chains.
-- **Controls & Audio**:
-  - ↩️ Full **Undo** support with game-state reconstruction.
-  - 🔊 Procedural sound synthesis using the browser's Web Audio API.
-  - 📱 Fully responsive layout with enlarged touch hitboxes for mobile and desktop.
+  - 🧠 **vs AI (Smart)**: Avoids giving away 3-sided boxes and seizes chains.
 
 ---
 

@@ -204,6 +204,26 @@ export class DotsAndBoxesGame {
   }
 
   /**
+   * Handles turn timeout when 20 seconds elapse without selecting a line.
+   * Skips the current player's turn and switches to the other player.
+   * @returns {Object} Timeout result details
+   */
+  handleTimeout() {
+    if (this.isGameOver) return { success: false, reason: 'Game already over' };
+
+    const skippedPlayer = this.currentPlayer;
+    this.currentPlayer = this.currentPlayer === PLAYERS.PLAYER_1 ? PLAYERS.PLAYER_2 : PLAYERS.PLAYER_1;
+
+    return {
+      success: true,
+      skippedPlayer,
+      nextPlayer: this.currentPlayer,
+      scores: { ...this.scores },
+      completedBoxes: this.completedBoxes
+    };
+  }
+
+  /**
    * Reverts the most recent move from history.
    * @returns {Object|null} The undone move details or null if no moves to undo.
    */

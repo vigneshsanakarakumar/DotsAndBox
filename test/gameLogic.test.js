@@ -237,9 +237,19 @@ assert(gUndo.currentPlayer === PLAYERS.PLAYER_2, 'Undo restored turn to P2');
 verifyInvariant(gUndo, 'After box-completion undo');
 
 // ----------------------------------------------------
-// Section 8: AI Rules Compliance
+// Section 8: AI Engine Compliance & Timeout Handling
 // ----------------------------------------------------
-console.log('\n[8. AI ENGINE COMPLIANCE]');
+console.log('\n[8. TIMEOUT TURN SKIPPING]');
+const gTime = new DotsAndBoxesGame();
+assert(gTime.currentPlayer === PLAYERS.PLAYER_1, 'P1 turn initially');
+const toRes = gTime.handleTimeout();
+assert(toRes.success === true, 'handleTimeout succeeds');
+assert(toRes.skippedPlayer === PLAYERS.PLAYER_1, 'Player 1 was skipped');
+assert(gTime.currentPlayer === PLAYERS.PLAYER_2, 'Turn passed to Player 2 after 20s timeout');
+assert(gTime.scores[1] === 0 && gTime.scores[2] === 0, 'No points awarded on timeout');
+verifyInvariant(gTime, 'After timeout skip');
+
+console.log('\n[9. AI ENGINE COMPLIANCE]');
 const gAI = new DotsAndBoxesGame();
 // Test that Smart AI move is always a valid available line and passes through makeMove()
 for (let step = 0; step < 20; step++) {

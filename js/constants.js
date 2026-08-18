@@ -42,6 +42,22 @@ export const PLAYER_CONFIG = {
 
 export const GAME_MODES = {
   PASS_AND_PLAY: 'pass_and_play',
+  ONLINE_MULTIPLAYER: 'online_multiplayer',
   VS_AI_EASY: 'vs_ai_easy',
   VS_AI_SMART: 'vs_ai_smart'
+};
+
+export const TIMER_CONFIG = {
+  TURN_SECONDS: 20,
+  WARNING_THRESHOLD: 5
+};
+
+export const NETWORK_ACTIONS = {
+  JOIN_ROOM: 'join_room',
+  ROOM_READY: 'room_ready',
+  MAKE_MOVE: 'make_move',
+  TIMEOUT_SKIP: 'timeout_skip',
+  RESTART_REQUEST: 'restart_request',
+  RESTART_ACCEPT: 'restart_accept',
+  CHAT_MESSAGE: 'chat_message'
 };

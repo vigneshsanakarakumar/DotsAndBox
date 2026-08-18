@@ -3,27 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="A modern, polished 7x7 Dots and Boxes game with crisp vector graphics, intelligent AI, and smooth animations.">
-  <title>Dots & Boxes (7×7)</title>
+  <meta name="description" content="A modern, polished 7x7 Dots and Boxes online multiplayer game with 20s turn timer, JSON profiles, and smooth animations.">
+  <title>Dots & Boxes (7×7) - Online Multiplayer</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- PeerJS for WebRTC Online Multiplayer -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
   <main class="game-container">
-    <!-- Header -->
-    <header class="game-header">
+    <!-- Top Player Profile & Global Status -->
+    <header class="top-nav">
+      <div id="user-profile-btn" class="user-chip" title="Click to edit profile / change account">
+        <span id="user-avatar-badge" class="avatar-icon">⚡</span>
+        <span id="user-name-display" class="user-display-name">Player 1</span>
+        <span id="user-stats-badge" class="stats-pill">0W - 0L</span>
+      </div>
+
       <h1 class="game-title">
         DOTS & BOXES
         <span class="game-badge">7×7</span>
       </h1>
+
+      <div class="nav-actions">
+        <button id="btn-open-profile" class="icon-btn" title="Player Profile / JSON Login">
+          👤
+        </button>
+        <button id="btn-mute" class="icon-btn" title="Toggle sound">
+          🔊
+        </button>
+      </div>
     </header>
 
-    <!-- Top Control Bar -->
+    <!-- Controls & Game Mode Bar -->
     <section class="game-controls" aria-label="Game controls">
       <div class="control-group">
-        <label for="mode-selector" class="sr-only" style="display:none">Mode</label>
         <select id="mode-selector" class="select-dropdown" title="Select Game Mode">
           <option value="pass_and_play">👥 2 Players (Pass & Play)</option>
+          <option value="online_multiplayer">🌐 Online Multiplayer (Live Room)</option>
           <option value="vs_ai_easy">🤖 vs AI (Casual)</option>
           <option value="vs_ai_smart">🧠 vs AI (Smart)</option>
         </select>
@@ -33,12 +50,20 @@
         <button id="btn-undo" class="btn" title="Undo last move" disabled>
           ↩️ Undo
         </button>
-        <button id="btn-mute" class="btn" title="Toggle sound">
-          🔊 Sound: On
-        </button>
         <button id="btn-new-game" class="btn" title="Restart Game">
           🔄 New Game
         </button>
+      </div>
+    </section>
+
+    <!-- 20-Second Turn Countdown Timer -->
+    <section id="turn-timer-card" class="turn-timer-card" aria-label="Turn Timer">
+      <div class="timer-meta">
+        <span class="timer-label">⏱️ Turn Timer (20s)</span>
+        <span id="timer-number" class="timer-seconds">20s</span>
+      </div>
+      <div class="timer-progress-track">
+        <div id="timer-progress-bar" class="timer-progress-fill" style="width: 100%;"></div>
       </div>
     </section>
 
@@ -47,9 +72,9 @@
       <!-- Player 1 Card -->
       <div id="p1-card" class="player-card p1 active">
         <div class="player-info">
-          <div class="player-avatar">P1</div>
+          <div id="p1-avatar-el" class="player-avatar">P1</div>
           <div>
-            <div class="player-name">Player 1</div>
+            <div id="p1-name" class="player-name">Player 1</div>
             <div class="turn-tag">Active Turn</div>
           </div>
         </div>
@@ -59,7 +84,7 @@
       <!-- Player 2 Card -->
       <div id="p2-card" class="player-card p2">
         <div class="player-info">
-          <div class="player-avatar">P2</div>
+          <div id="p2-avatar-el" class="player-avatar">P2</div>
           <div>
             <div id="p2-name" class="player-name">Player 2</div>
             <div class="turn-tag">Active Turn</div>
@@ -73,7 +98,7 @@
     <section class="status-bar" aria-label="Game status">
       <div id="turn-indicator" class="turn-indicator player-1-active">
         <span class="turn-dot player-1-dot"></span>
-        <span>Player 1's Turn</span>
+        <span id="turn-text">Player 1's Turn</span>
       </div>
       <div class="boxes-stats">
         <span>Claimed: <strong id="boxes-completed">0</strong>/49</span>
@@ -81,7 +106,7 @@
       </div>
     </section>
 
-    <!-- Progress Bar -->
+    <!-- Overall Game Progress Bar -->
     <div class="progress-container" title="Board ownership breakdown">
       <div id="progress-p1" class="progress-p1" style="width: 0%;"></div>
       <div id="progress-p2" class="progress-p2" style="width: 0%;"></div>
@@ -89,7 +114,7 @@
 
     <!-- Board Area -->
     <section class="board-wrapper" aria-label="Dots and Boxes board">
-      <!-- Floating notification banner for completed boxes and extra turns -->
+      <!-- Floating notification banner for completed boxes, extra turns, and timeouts -->
       <div id="game-banner" class="game-banner" role="status">
         <span id="banner-text">+1 BOX! EXTRA TURN!</span>
       </div>
@@ -99,6 +124,96 @@
     </section>
   </main>
 
+  <!-- Login & Profile Modal (JSON-based) -->
+  <div id="login-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <div class="modal-card modal-auth">
+      <h2 id="login-title" class="modal-title">👤 Player Profile</h2>
+      <p class="modal-subtitle">Stored locally in JSON format with stats tracking</p>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="input-username" class="form-label">Player Username</label>
+          <input type="text" id="input-username" class="form-input" placeholder="e.g. Vignesh" maxlength="16" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Select Avatar Emoji</label>
+          <div id="avatar-picker" class="avatar-grid">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <div class="profile-stats-summary">
+          <div class="stat-box">
+            <span class="stat-num" id="profile-wins">0</span>
+            <span class="stat-lbl">Wins</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="profile-losses">0</span>
+            <span class="stat-lbl">Losses</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="profile-games">0</span>
+            <span class="stat-lbl">Matches</span>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          💾 Save & Sign In
+        </button>
+      </form>
+      <button id="btn-close-login" class="btn btn-secondary mt-2">Close</button>
+    </div>
+  </div>
+
+  <!-- Online Multiplayer Lobby Modal -->
+  <div id="online-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="online-title">
+    <div class="modal-card modal-online">
+      <h2 id="online-title" class="modal-title">🌐 Online Multiplayer</h2>
+      <p class="modal-subtitle">Play live with a friend across devices via WebRTC room codes</p>
+
+      <div class="online-options">
+        <!-- Host Room -->
+        <div class="online-card">
+          <h3>Host a Match</h3>
+          <p class="sub-text">Create a room and share code with a friend</p>
+          <button id="btn-host-room" class="btn btn-primary">
+            ➕ Create New Room
+          </button>
+
+          <div id="host-code-display" class="room-code-box" style="display: none;">
+            <span class="room-code-lbl">Your Room Code:</span>
+            <div class="code-and-copy">
+              <strong id="room-code-text" class="room-code">BOX-1234</strong>
+              <button id="btn-copy-code" class="btn btn-sm" title="Copy code">📋 Copy</button>
+            </div>
+            <div class="spinner-inline">
+              <span class="dot-pulse"></span>
+              <span>Waiting for opponent to connect...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider-or"><span>OR</span></div>
+
+        <!-- Join Room -->
+        <div class="online-card">
+          <h3>Join a Match</h3>
+          <p class="sub-text">Enter your friend's 6-character room code</p>
+          <div class="join-input-group">
+            <input type="text" id="input-join-code" class="form-input" placeholder="e.g. BOX-8492" maxlength="10">
+            <button id="btn-join-room" class="btn btn-primary">
+              🚀 Join
+            </button>
+          </div>
+          <div id="join-status-msg" class="status-msg"></div>
+        </div>
+      </div>
+
+      <button id="btn-close-online" class="btn btn-secondary mt-3">Cancel</button>
+    </div>
+  </div>
+
   <!-- Game Over Modal -->
   <div id="game-over-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-card">
@@ -107,12 +222,12 @@
 
       <div class="modal-scores">
         <div class="modal-score-item">
-          <span class="modal-score-label">PLAYER 1</span>
+          <span id="modal-p1-label" class="modal-score-label">PLAYER 1</span>
           <span id="modal-p1-score" class="modal-score-val p1">0</span>
         </div>
         <div class="modal-vs">vs</div>
         <div class="modal-score-item">
-          <span class="modal-score-label">PLAYER 2</span>
+          <span id="modal-p2-label" class="modal-score-label">PLAYER 2</span>
           <span id="modal-p2-score" class="modal-score-val p2">0</span>
         </div>
       </div>
