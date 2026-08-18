@@ -1,4 +1,4 @@
-import { BOARD_CONFIG, PLAYERS, PLAYER_CONFIG, GAME_MODES } from './constants.js';
+import { BOARD_CONFIG, PLAYERS, PLAYER_CONFIG, GAME_MODES, NETWORK_ACTIONS } from './constants.js';
 import { DotsAndBoxesGame } from './gameLogic.js';
 import { DotsAndBoxesAI } from './ai.js';
 import { sound } from './audio.js';
@@ -6,731 +6,962 @@ import { auth, AVATAR_PRESETS } from './auth.js';
 import { TurnTimer } from './timer.js';
 import { OnlineMultiplayerEngine } from './online.js';
 
-class DotsAndBoxesApp {
-  constructor() {
-    this.game = new DotsAndBoxesGame();
-    this.currentMode = GAME_MODES.PASS_AND_PLAY;
-    this.isAiThinking = false;
-    this.bannerTimeout = null;
-    this.selectedAvatar = '⚡';
-    this.myOnlinePlayerIndex = 1; // 1 for Host (P1), 2 for Joiner (P2)
-    this.onlineEngine = null;
-
-    // Initialize 20s Turn Timer
-    this.turnTimer = new TurnTimer({
-      duration: 20,
-      warningThreshold: 5,
-      onTick: (secondsLeft, percent) => this.handleTimerTick(secondsLeft, percent),
-      onWarning: (secondsLeft) => this.handleTimerWarning(secondsLeft),
-      onTimeout: () => this.handleTurnTimeout()
-    });
-
-    this.cacheDom();
-    this.initAuthUI();
-    this.bindEvents();
-    this.initBoardSVG();
-    this.updateUI();
-
-    // Start timer on initial game load
-    this.turnTimer.start();
-  }
-
-  cacheDom() {
-    // Header & Profile
-    this.userProfileBtn = document.getElementById('user-profile-btn');
-    this.btnOpenProfile = document.getElementById('btn-open-profile');
-    this.userAvatarBadge = document.getElementById('user-avatar-badge');
-    this.userNameDisplay = document.getElementById('user-name-display');
-    this.userStatsBadge = document.getElementById('user-stats-badge');
-
-    // Timer elements
-    this.turnTimerCard = document.getElementById('turn-timer-card');
-    this.timerNumberEl = document.getElementById('timer-number');
-    this.timerProgressBar = document.getElementById('timer-progress-bar');
-
-    // Board & Scoreboard
-    this.boardSvg = document.getElementById('board-svg');
-    this.p1ScoreEl = document.getElementById('p1-score');
-    this.p2ScoreEl = document.getElementById('p2-score');
-    this.p1CardEl = document.getElementById('p1-card');
-    this.p2CardEl = document.getElementById('p2-card');
-    this.p1NameEl = document.getElementById('p1-name');
-    this.p2NameEl = document.getElementById('p2-name');
-    this.p1AvatarEl = document.getElementById('p1-avatar-el');
-    this.p2AvatarEl = document.getElementById('p2-avatar-el');
-    this.turnIndicatorEl = document.getElementById('turn-indicator');
-    this.turnTextEl = document.getElementById('turn-text');
-    this.boxesLeftEl = document.getElementById('boxes-left');
-    this.boxesCompletedEl = document.getElementById('boxes-completed');
-    this.progressFillP1 = document.getElementById('progress-p1');
-    this.progressFillP2 = document.getElementById('progress-p2');
-    this.bannerEl = document.getElementById('game-banner');
-    this.bannerTextEl = document.getElementById('banner-text');
-
-    // Controls
-    this.btnNewGame = document.getElementById('btn-new-game');
-    this.btnUndo = document.getElementById('btn-undo');
-    this.btnMute = document.getElementById('btn-mute');
-    this.modeSelector = document.getElementById('mode-selector');
-
-    // Login Modal
-    this.loginModal = document.getElementById('login-modal');
-    this.loginForm = document.getElementById('login-form');
-    this.inputUsername = document.getElementById('input-username');
-    this.avatarPicker = document.getElementById('avatar-picker');
-    this.profileWins = document.getElementById('profile-wins');
-    this.profileLosses = document.getElementById('profile-losses');
-    this.profileGames = document.getElementById('profile-games');
-    this.btnCloseLogin = document.getElementById('btn-close-login');
-
-    // Online Modal
-    this.onlineModal = document.getElementById('online-modal');
-    this.btnHostRoom = document.getElementById('btn-host-room');
-    this.btnJoinRoom = document.getElementById('btn-join-room');
-    this.inputJoinCode = document.getElementById('input-join-code');
-    this.hostCodeDisplay = document.getElementById('host-code-display');
-    this.roomCodeText = document.getElementById('room-code-text');
-    this.btnCopyCode = document.getElementById('btn-copy-code');
-    this.joinStatusMsg = document.getElementById('join-status-msg');
-    this.btnCloseOnline = document.getElementById('btn-close-online');
-
-    // Game Over Modal
-    this.gameOverModal = document.getElementById('game-over-modal');
-    this.modalTitle = document.getElementById('modal-title');
-    this.modalSub = document.getElementById('modal-subtitle');
-    this.modalP1Score = document.getElementById('modal-p1-score');
-    this.modalP2Score = document.getElementById('modal-p2-score');
-    this.modalP1Label = document.getElementById('modal-p1-label');
-    this.modalP2Label = document.getElementById('modal-p2-label');
-    this.btnPlayAgain = document.getElementById('btn-play-again');
-  }
-
-  initAuthUI() {
-    let user = auth.getCurrentUser();
-    if (!user) {
-      user = auth.login('Player 1', '⚡');
-    }
-
-    this.selectedAvatar = user.avatar;
-    this.refreshUserDisplay(user);
-
-    // Build avatar choices
-    this.avatarPicker.innerHTML = '';
-    AVATAR_PRESETS.forEach((emoji) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `avatar-choice ${emoji === this.selectedAvatar ? 'selected' : ''}`;
-      btn.textContent = emoji;
-      btn.addEventListener('click', () => {
-        this.selectedAvatar = emoji;
-        this.avatarPicker.querySelectorAll('.avatar-choice').forEach((b) => b.classList.remove('selected'));
-        btn.classList.add('selected');
-      });
-      this.avatarPicker.appendChild(btn);
-    });
-  }
-
-  refreshUserDisplay(user) {
-    if (!user) return;
-    this.userNameDisplay.textContent = user.username;
-    this.userAvatarBadge.textContent = user.avatar;
-    this.userStatsBadge.textContent = `${user.wins}W - ${user.losses}L`;
-
-    this.inputUsername.value = user.username;
-    this.profileWins.textContent = user.wins;
-    this.profileLosses.textContent = user.losses;
-    this.profileGames.textContent = user.gamesPlayed;
-
-    // If local player is P1 in pass & play or host
-    if (this.currentMode !== GAME_MODES.ONLINE_MULTIPLAYER || this.myOnlinePlayerIndex === 1) {
-      this.p1NameEl.textContent = user.username;
-      this.p1AvatarEl.textContent = user.avatar;
-    }
-  }
-
-  bindEvents() {
-    this.btnNewGame.addEventListener('click', () => this.handleNewGame());
-    this.btnPlayAgain.addEventListener('click', () => {
-      this.closeGameOverModal();
-      this.handleNewGame();
-    });
-    this.btnUndo.addEventListener('click', () => this.handleUndo());
-    this.btnMute.addEventListener('click', () => this.handleMuteToggle());
-    this.modeSelector.addEventListener('change', (e) => this.handleModeChange(e.target.value));
-
-    // Profile & Login
-    this.userProfileBtn.addEventListener('click', () => this.openLoginModal());
-    this.btnOpenProfile.addEventListener('click', () => this.openLoginModal());
-    this.btnCloseLogin.addEventListener('click', () => this.closeLoginModal());
-    this.loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const updated = auth.login(this.inputUsername.value, this.selectedAvatar);
-      this.refreshUserDisplay(updated);
-      this.closeLoginModal();
-      this.updateUI();
-    });
-
-    // Online Lobby
-    this.btnHostRoom.addEventListener('click', () => this.handleHostOnlineRoom());
-    this.btnJoinRoom.addEventListener('click', () => this.handleJoinOnlineRoom());
-    this.btnCopyCode.addEventListener('click', () => this.copyRoomCode());
-    this.btnCloseOnline.addEventListener('click', () => this.closeOnlineModal());
-  }
-
-  // ------------------------------------------------------------------------
-  // Turn Timer Handlers (20s with Timeout Turn Skipping)
-  // ------------------------------------------------------------------------
-
-  handleTimerTick(secondsLeft, percent) {
-    this.timerNumberEl.textContent = `${secondsLeft}s`;
-    this.timerProgressBar.style.width = `${percent}%`;
-
-    // Color shifting: Green -> Amber -> Red
-    if (secondsLeft <= 5) {
-      this.turnTimerCard.className = 'turn-timer-card warning-pulse';
-    } else if (secondsLeft <= 10) {
-      this.turnTimerCard.className = 'turn-timer-card warning';
-    } else {
-      this.turnTimerCard.className = 'turn-timer-card normal';
-    }
-  }
-
-  handleTimerWarning(secondsLeft) {
-    sound.playTimerTick();
-  }
-
-  handleTurnTimeout() {
-    if (this.game.isGameOver) return;
-
-    sound.playTimeout();
-    const result = this.game.handleTimeout();
-    if (!result.success) return;
-
-    const skippedPlayer = result.skippedPlayer;
-    this.showBanner(`⏰ TIME'S UP! P${skippedPlayer} TURN SKIPPED`, skippedPlayer);
-
-    // If online, broadcast timeout to peer
-    if (this.currentMode === GAME_MODES.ONLINE_MULTIPLAYER && this.onlineEngine) {
-      if (skippedPlayer === this.myOnlinePlayerIndex) {
-        this.onlineEngine.sendTimeout();
-      }
-    }
-
-    this.updateUI();
-    this.turnTimer.start(); // Restart 20s for new player
-
-    // If AI's turn after timeout
-    if (this.currentMode !== GAME_MODES.PASS_AND_PLAY && 
-        this.currentMode !== GAME_MODES.ONLINE_MULTIPLAYER && 
-        this.game.currentPlayer === PLAYERS.PLAYER_2) {
-      this.scheduleAiMove();
-    }
-  }
-
-  // ------------------------------------------------------------------------
-  // Board SVG Rendering (8x8 Dots, 7x7 Boxes, 112 Selectable Lines)
-  // ------------------------------------------------------------------------
-
-  initBoardSVG() {
-    const boxSize = 64;
-    const padding = 36;
-    const totalWidth = padding * 2 + (BOARD_CONFIG.DOT_COLS - 1) * boxSize;
-    const totalHeight = padding * 2 + (BOARD_CONFIG.DOT_ROWS - 1) * boxSize;
-
-    this.boardSvg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
-    this.boardSvg.innerHTML = '';
-
-    const svgNS = 'http://www.w3.org/2000/svg';
-
-    // 1. Boxes Layer (49 boxes)
-    const boxesGroup = document.createElementNS(svgNS, 'g');
-    boxesGroup.setAttribute('id', 'boxes-layer');
-
-    for (let r = 0; r < BOARD_CONFIG.BOX_ROWS; r++) {
-      for (let c = 0; c < BOARD_CONFIG.BOX_COLS; c++) {
-        const x = padding + c * boxSize;
-        const y = padding + r * boxSize;
-
-        const boxGroup = document.createElementNS(svgNS, 'g');
-        boxGroup.setAttribute('class', 'box-item');
-        boxGroup.setAttribute('id', `box-${r}-${c}`);
-
-        const rect = document.createElementNS(svgNS, 'rect');
-        rect.setAttribute('x', x);
-        rect.setAttribute('y', y);
-        rect.setAttribute('width', boxSize);
-        rect.setAttribute('height', boxSize);
-        rect.setAttribute('class', 'box-rect');
-
-        const text = document.createElementNS(svgNS, 'text');
-        text.setAttribute('x', x + boxSize / 2);
-        text.setAttribute('y', y + boxSize / 2 + 5);
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('class', 'box-label');
-        text.textContent = '';
-
-        boxGroup.appendChild(rect);
-        boxGroup.appendChild(text);
-        boxesGroup.appendChild(boxGroup);
-      }
-    }
-    this.boardSvg.appendChild(boxesGroup);
-
-    // 2. Lines Layer (56 H + 56 V lines = 112 lines)
-    const linesGroup = document.createElementNS(svgNS, 'g');
-    linesGroup.setAttribute('id', 'lines-layer');
-
-    // Horizontal Lines (8 rows x 7 cols)
-    for (let r = 0; r < BOARD_CONFIG.DOT_ROWS; r++) {
-      for (let c = 0; c < BOARD_CONFIG.BOX_COLS; c++) {
-        const x1 = padding + c * boxSize;
-        const y = padding + r * boxSize;
-        const x2 = x1 + boxSize;
-
-        const lineGroup = document.createElementNS(svgNS, 'g');
-        lineGroup.setAttribute('class', 'line-group horizontal-line');
-        lineGroup.setAttribute('id', `h-line-${r}-${c}`);
-
-        const line = document.createElementNS(svgNS, 'line');
-        line.setAttribute('x1', x1);
-        line.setAttribute('y1', y);
-        line.setAttribute('x2', x2);
-        line.setAttribute('y2', y);
-        line.setAttribute('class', 'grid-line');
-
-        const hitArea = document.createElementNS(svgNS, 'line');
-        hitArea.setAttribute('x1', x1);
-        hitArea.setAttribute('y1', y);
-        hitArea.setAttribute('x2', x2);
-        hitArea.setAttribute('y2', y);
-        hitArea.setAttribute('class', 'line-hitarea');
-
-        lineGroup.appendChild(line);
-        lineGroup.appendChild(hitArea);
-        lineGroup.addEventListener('click', () => this.handleLineClick('h', r, c));
-        linesGroup.appendChild(lineGroup);
-      }
-    }
-
-    // Vertical Lines (7 rows x 8 cols)
-    for (let r = 0; r < BOARD_CONFIG.BOX_ROWS; r++) {
-      for (let c = 0; c < BOARD_CONFIG.DOT_COLS; c++) {
-        const x = padding + c * boxSize;
-        const y1 = padding + r * boxSize;
-        const y2 = y1 + boxSize;
-
-        const lineGroup = document.createElementNS(svgNS, 'g');
-        lineGroup.setAttribute('class', 'line-group vertical-line');
-        lineGroup.setAttribute('id', `v-line-${r}-${c}`);
-
-        const line = document.createElementNS(svgNS, 'line');
-        line.setAttribute('x1', x);
-        line.setAttribute('y1', y1);
-        line.setAttribute('x2', x);
-        line.setAttribute('y2', y2);
-        line.setAttribute('class', 'grid-line');
-
-        const hitArea = document.createElementNS(svgNS, 'line');
-        hitArea.setAttribute('x1', x);
-        hitArea.setAttribute('y1', y1);
-        hitArea.setAttribute('x2', x);
-        hitArea.setAttribute('y2', y2);
-        hitArea.setAttribute('class', 'line-hitarea');
-
-        lineGroup.appendChild(line);
-        lineGroup.appendChild(hitArea);
-        lineGroup.addEventListener('click', () => this.handleLineClick('v', r, c));
-        linesGroup.appendChild(lineGroup);
-      }
-    }
-    this.boardSvg.appendChild(linesGroup);
-
-    // 3. Dots Layer (8 rows x 8 cols = 64 dots)
-    const dotsGroup = document.createElementNS(svgNS, 'g');
-    dotsGroup.setAttribute('id', 'dots-layer');
-
-    for (let r = 0; r < BOARD_CONFIG.DOT_ROWS; r++) {
-      for (let c = 0; c < BOARD_CONFIG.DOT_COLS; c++) {
-        const cx = padding + c * boxSize;
-        const cy = padding + r * boxSize;
-
-        const dot = document.createElementNS(svgNS, 'circle');
-        dot.setAttribute('cx', cx);
-        dot.setAttribute('cy', cy);
-        dot.setAttribute('r', 5.5);
-        dot.setAttribute('class', 'grid-dot');
-        dotsGroup.appendChild(dot);
-      }
-    }
-    this.boardSvg.appendChild(dotsGroup);
-  }
-
-  // ------------------------------------------------------------------------
-  // Move Processing & Validation
-  // ------------------------------------------------------------------------
-
-  handleLineClick(type, row, col) {
-    if (this.game.isGameOver || this.isAiThinking) return;
-
-    // Mode lock guards:
-    if (this.currentMode === GAME_MODES.ONLINE_MULTIPLAYER) {
-      if (this.game.currentPlayer !== this.myOnlinePlayerIndex) return;
-    } else if (this.currentMode !== GAME_MODES.PASS_AND_PLAY) {
-      if (this.game.currentPlayer === PLAYERS.PLAYER_2) return;
-    }
-
-    const moveRes = this.processMove(type, row, col);
-
-    // If online match, broadcast move to opponent
-    if (moveRes && moveRes.success && this.currentMode === GAME_MODES.ONLINE_MULTIPLAYER && this.onlineEngine) {
-      this.onlineEngine.sendMove(type, row, col);
-    }
-  }
-
-  processMove(type, row, col) {
-    const result = this.game.makeMove(type, row, col);
-    if (!result.success) return result;
-
-    const player = result.move.player;
-    sound.playLineClick();
-
-    // 1. Highlight line in UI
-    const lineId = `${type}-line-${row}-${col}`;
-    const lineGroup = document.getElementById(lineId);
-    if (lineGroup) {
-      lineGroup.classList.add('drawn', `player-${player}`);
-      lineGroup.classList.add('just-drawn');
-      setTimeout(() => lineGroup.classList.remove('just-drawn'), 400);
-    }
-
-    // 2. Animate and color newly completed boxes
-    if (result.completedBoxes.length > 0) {
-      sound.playBoxComplete(result.completedBoxes.length > 1);
-
-      result.completedBoxes.forEach((box) => {
-        const boxEl = document.getElementById(`box-${box.row}-${box.col}`);
-        if (boxEl) {
-          boxEl.classList.add('claimed', `player-${player}`);
-          const label = boxEl.querySelector('.box-label');
-          if (label) {
-            const avatar = player === 1 ? this.p1AvatarEl.textContent : this.p2AvatarEl.textContent;
-            label.textContent = avatar || PLAYER_CONFIG[player].avatar;
-          }
-        }
-      });
-
-      const extraBoxesText = result.completedBoxes.length === 1 ? '+1 BOX!' : '+2 BOXES!';
-      this.showBanner(`${extraBoxesText} EXTRA TURN!`, player);
-    }
-
-    // 3. Reset 20-second turn timer for next move (or extra turn)
-    if (!result.isGameOver) {
-      this.turnTimer.start();
-    } else {
-      this.turnTimer.stop();
-    }
-
-    // 4. Update UI & Scores
-    this.updateUI();
-
-    // 5. Check Game Over
-    if (result.isGameOver) {
-      sound.playGameOver();
-      this.handleGameOver(result.winner);
-      return result;
-    }
-
-    // 6. AI Turn handling
-    if (this.currentMode !== GAME_MODES.PASS_AND_PLAY && 
-        this.currentMode !== GAME_MODES.ONLINE_MULTIPLAYER && 
-        this.game.currentPlayer === PLAYERS.PLAYER_2) {
-      this.scheduleAiMove();
-    }
-
-    return result;
-  }
-
-  scheduleAiMove() {
-    this.isAiThinking = true;
-    this.turnIndicatorEl.classList.add('ai-thinking');
-
-    setTimeout(() => {
-      if (this.game.isGameOver) {
-        this.isAiThinking = false;
-        return;
-      }
-
-      const aiMove = DotsAndBoxesAI.getMove(this.game, this.currentMode);
-      this.isAiThinking = false;
-      this.turnIndicatorEl.classList.remove('ai-thinking');
-
-      if (aiMove) {
-        this.processMove(aiMove.type, aiMove.row, aiMove.col);
-      }
-    }, 500);
-  }
-
-  handleGameOver(winner) {
-    const user = auth.getCurrentUser();
-    if (user) {
-      if (winner === 'DRAW') {
-        auth.recordMatch('draw');
-      } else if (winner === this.myOnlinePlayerIndex) {
-        auth.recordMatch('win');
+/* ============================================================
+   APP STATE
+   ============================================================ */
+const state = {
+  /* Auth & Mode */
+  mode: null,           // 'offline' | 'online' | 'ai_easy' | 'ai_smart'
+  p1User: null,         // profile object for player 1 (logged-in user)
+  p2User: null,         // profile object for player 2 (offline only)
+  myOnlineIndex: 1,     // 1 = host (P1), 2 = joiner (P2)
+  opponentOnlineProfile: null,
+
+  /* Game */
+  game: new DotsAndBoxesGame(),
+  isAiThinking: false,
+  bannerTimeout: null,
+};
+
+/* Active avatar selections during registration */
+let regAvatar     = '⚡';
+let offlineP2Avatar = '🦊';
+
+/* ============================================================
+   DOM REFERENCES
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+
+// Screens
+const homeScreen = $('home-screen');
+const gameScreen = $('game-screen');
+
+// Home panels
+const profileCard     = $('profile-setup-card');
+const modeCard        = $('mode-select-card');
+const offlineP2Card   = $('offline-player2-card');
+const onlineLobbyCard = $('online-lobby-card');
+const leaderboardCard = $('leaderboard-card');
+
+// Auth
+const tabRegister  = $('tab-register');
+const tabLogin     = $('tab-login');
+const panelReg     = $('panel-register');
+const panelLogin   = $('panel-login');
+const regUsernameInput = $('reg-username');
+const regUsernameHint  = $('reg-username-hint');
+const regAvatarPicker  = $('reg-avatar-picker');
+const btnRegister   = $('btn-register');
+const loginUsernameInput = $('login-username');
+const loginHint     = $('login-hint');
+const btnLogin      = $('btn-login');
+
+// Profile Chip
+const activeProfileChip = $('active-profile-chip');
+const chipAvatar = $('chip-avatar');
+const chipName   = $('chip-name');
+const chipStats  = $('chip-stats');
+const btnChangeUser = $('btn-change-user');
+
+// Offline p2
+const offlineP2Input = $('offline-p2-username');
+const offlineP2Hint  = $('offline-p2-hint');
+const offlineP2AvatarPicker = $('offline-p2-avatar-picker');
+const btnOfflineBack  = $('btn-offline-back');
+const btnOfflineStart = $('btn-offline-start');
+
+// Online lobby
+const btnCreateRoom   = $('btn-create-room');
+const btnJoinRoom     = $('btn-join-room');
+const inputJoinCode   = $('input-join-code');
+const roomCodeDisplay = $('room-code-display');
+const roomCodeValue   = $('room-code-value');
+const btnCopyRoomCode = $('btn-copy-room-code');
+const roomStatusText  = $('room-status-text');
+const joinStatusMsg   = $('join-status-msg');
+const btnOnlineBack   = $('btn-online-back');
+
+// Leaderboard
+const leaderboardList = $('leaderboard-list');
+
+// Game Screen
+const btnExitGame  = $('btn-exit-game');
+const btnMute      = $('btn-mute');
+const btnUndo      = $('btn-undo');
+const btnNewGame   = $('btn-new-game');
+
+const timerCard      = $('turn-timer-card');
+const timerNumber    = $('timer-number');
+const timerBar       = $('timer-progress-bar');
+
+const p1CardEl  = $('p1-card');
+const p2CardEl  = $('p2-card');
+const p1NameEl  = $('p1-name-el');
+const p2NameEl  = $('p2-name-el');
+const p1AvatarEl = $('p1-avatar-el');
+const p2AvatarEl = $('p2-avatar-el');
+const p1ScoreEl  = $('p1-score');
+const p2ScoreEl  = $('p2-score');
+
+const turnIndicatorEl = $('turn-indicator');
+const turnTextEl      = $('turn-text');
+const boxesCompletedEl = $('boxes-completed');
+const boxesLeftEl      = $('boxes-left');
+const progressP1 = $('progress-p1');
+const progressP2 = $('progress-p2');
+const boardSvg   = $('board-svg');
+const bannerEl   = $('game-banner');
+const bannerTextEl = $('banner-text');
+
+// Modals
+const gameOverModal    = $('game-over-modal');
+const exitConfirmModal = $('exit-confirm-modal');
+
+const winnerTrophy     = $('winner-trophy');
+const modalWinnerTitle = $('modal-winner-title');
+const modalSubtitle    = $('modal-subtitle');
+const modalP1Label     = $('modal-p1-label');
+const modalP2Label     = $('modal-p2-label');
+const modalP1Avatar    = $('modal-p1-avatar');
+const modalP2Avatar    = $('modal-p2-avatar');
+const modalP1Score     = $('modal-p1-score');
+const modalP2Score     = $('modal-p2-score');
+const btnPlayAgain     = $('btn-play-again');
+const btnGoHome        = $('btn-go-home');
+const btnConfirmExit   = $('btn-confirm-exit');
+const btnCancelExit    = $('btn-cancel-exit');
+
+/* ============================================================
+   TURN TIMER
+   ============================================================ */
+const turnTimer = new TurnTimer({
+  duration: 20,
+  warningThreshold: 5,
+  onTick: (s, pct) => {
+    timerNumber.textContent = `${s}s`;
+    timerBar.style.width = `${pct}%`;
+    if (s <= 5) timerCard.className = 'turn-timer-card danger';
+    else if (s <= 10) timerCard.className = 'turn-timer-card warning';
+    else timerCard.className = 'turn-timer-card normal';
+  },
+  onWarning: () => sound.playTimerTick(),
+  onTimeout: handleTurnTimeout,
+});
+
+/* ============================================================
+   ONLINE ENGINE
+   ============================================================ */
+let onlineEngine = null;
+
+function initOnlineEngine() {
+  if (onlineEngine) { onlineEngine.disconnect(); onlineEngine = null; }
+
+  onlineEngine = new OnlineMultiplayerEngine({
+    onStatusChange: (status, msg) => {
+      roomStatusText.textContent = msg;
+      joinStatusMsg.textContent = msg;
+    },
+    onRoomReady: (code) => {
+      roomCodeValue.textContent = code;
+      roomCodeDisplay.classList.remove('hidden');
+    },
+    onOpponentJoined: (info) => {
+      state.myOnlineIndex = info.playerIndex;
+      // Close lobby, start game
+      showOnlineLobby(false);
+      startOnlineGame();
+    },
+    onOpponentProfileReceived: (profile) => {
+      state.opponentOnlineProfile = profile;
+      // Update whichever slot is the opponent
+      const oppIndex = state.myOnlineIndex === 1 ? 2 : 1;
+      if (oppIndex === 1) {
+        p1NameEl.textContent = profile.username || 'Opponent';
+        p1AvatarEl.textContent = profile.avatar || '👾';
       } else {
-        auth.recordMatch('loss');
+        p2NameEl.textContent = profile.username || 'Opponent';
+        p2AvatarEl.textContent = profile.avatar || '👾';
       }
-      this.refreshUserDisplay(auth.getCurrentUser());
+      updateGameUI();
+    },
+    onMoveReceived: (move) => {
+      // Opponent's move arrives — apply it
+      processMove(move.type, move.row, move.col, false);
+    },
+    onTimeoutReceived: () => {
+      handleTurnTimeout(true /* remote event, don't re-broadcast */);
+    },
+    onDisconnected: () => {
+      // Opponent disconnected → current player wins
+      if (!state.game.isGameOver) {
+        turnTimer.stop();
+        const myIndex = state.myOnlineIndex;
+        showDisconnectWin(myIndex);
+      }
     }
+  });
+}
 
-    setTimeout(() => this.showGameOverModal(winner), 500);
-  }
+/* ============================================================
+   NAVIGATION HELPERS
+   ============================================================ */
+function showScreen(name) {
+  homeScreen.classList.toggle('active', name === 'home');
+  gameScreen.classList.toggle('active', name === 'game');
+}
 
-  // ------------------------------------------------------------------------
-  // Online Multiplayer WebRTC Integration
-  // ------------------------------------------------------------------------
+function showHomePanel(name) {
+  profileCard.classList.toggle('hidden', name !== 'profile');
+  modeCard.classList.toggle('hidden', name !== 'mode');
+  offlineP2Card.classList.toggle('hidden', name !== 'offline-p2');
+  onlineLobbyCard.classList.toggle('hidden', name !== 'online-lobby');
+}
 
-  initOnlineEngine() {
-    if (!this.onlineEngine) {
-      this.onlineEngine = new OnlineMultiplayerEngine({
-        onStatusChange: (status, msg) => {
-          if (this.joinStatusMsg) this.joinStatusMsg.textContent = msg;
-        },
-        onRoomReady: (code) => {
-          this.hostCodeDisplay.style.display = 'block';
-          this.roomCodeText.textContent = code;
-        },
-        onOpponentJoined: (info) => {
-          this.myOnlinePlayerIndex = info.playerIndex;
-          this.closeOnlineModal();
-          this.showBanner('🎮 OPPONENT CONNECTED! GAME STARTED', 1);
-          this.handleNewGame();
-        },
-        onMoveReceived: (move) => {
-          this.processMove(move.type, move.row, move.col);
-        },
-        onTimeoutReceived: () => {
-          this.handleTurnTimeout();
-        },
-        onDisconnected: () => {
-          this.showBanner('⚠️ Opponent disconnected', 2);
-        }
-      });
-    }
-  }
+function showOnlineLobby(visible) {
+  onlineLobbyCard.classList.toggle('hidden', !visible);
+  modeCard.classList.toggle('hidden', visible);
+}
 
-  async handleHostOnlineRoom() {
-    this.initOnlineEngine();
-    const user = auth.getCurrentUser();
-    await this.onlineEngine.createRoom(user);
-  }
-
-  async handleJoinOnlineRoom() {
-    const code = this.inputJoinCode.value.trim();
-    if (!code) {
-      this.joinStatusMsg.textContent = 'Please enter a valid room code';
-      return;
-    }
-    this.initOnlineEngine();
-    const user = auth.getCurrentUser();
-    await this.onlineEngine.joinRoom(code, user);
-  }
-
-  copyRoomCode() {
-    const code = this.roomCodeText.textContent;
-    navigator.clipboard.writeText(code).then(() => {
-      this.btnCopyCode.textContent = '✅ Copied!';
-      setTimeout(() => (this.btnCopyCode.textContent = '📋 Copy'), 2000);
+/* ============================================================
+   BUILD AVATAR PICKERS
+   ============================================================ */
+function buildAvatarPicker(container, defaultAvatar, onSelect) {
+  container.innerHTML = '';
+  AVATAR_PRESETS.forEach((emoji) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `av-btn${emoji === defaultAvatar ? ' selected' : ''}`;
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.av-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      onSelect(emoji);
     });
+    container.appendChild(btn);
+  });
+}
+
+/* ============================================================
+   HOME AUTH LOGIC
+   ============================================================ */
+function initHomeScreen() {
+  buildAvatarPicker(regAvatarPicker, regAvatar, (av) => { regAvatar = av; });
+  buildAvatarPicker(offlineP2AvatarPicker, offlineP2Avatar, (av) => { offlineP2Avatar = av; });
+
+  // If user already logged in, skip to mode select
+  const existingUser = auth.getCurrentUser();
+  if (existingUser) {
+    state.p1User = existingUser;
+    showHomePanel('mode');
+    refreshProfileChip(existingUser);
+  } else {
+    showHomePanel('profile');
   }
 
-  // ------------------------------------------------------------------------
-  // UI Helpers & Synchronization
-  // ------------------------------------------------------------------------
+  refreshLeaderboard();
+}
 
-  showBanner(message, player) {
-    if (this.bannerTimeout) clearTimeout(this.bannerTimeout);
-    this.bannerTextEl.textContent = message;
-    this.bannerEl.className = `game-banner show player-${player}`;
-    this.bannerTimeout = setTimeout(() => {
-      this.bannerEl.classList.remove('show');
-    }, 1300);
+function refreshProfileChip(user) {
+  chipAvatar.textContent = user.avatar;
+  chipName.textContent = user.username;
+  chipStats.textContent = `${user.wins}W · ${user.losses}L · ${user.draws}D`;
+}
+
+function refreshLeaderboard() {
+  const users = auth.getAllUsers().sort((a, b) => b.wins - a.wins);
+  if (users.length === 0) {
+    leaderboardList.innerHTML = '<p class="empty-msg">No players yet. Be the first!</p>';
+    return;
   }
+  leaderboardList.innerHTML = users.slice(0, 8).map((u, i) => `
+    <div class="lb-row">
+      <span class="lb-rank">#${i + 1}</span>
+      <span class="lb-av">${u.avatar}</span>
+      <span class="lb-name">${u.username}</span>
+      <span class="lb-wins">${u.wins}W</span>
+      <span class="lb-games">${u.gamesPlayed} matches</span>
+    </div>
+  `).join('');
+}
 
-  updateUI() {
-    const p1Score = this.game.scores[PLAYERS.PLAYER_1];
-    const p2Score = this.game.scores[PLAYERS.PLAYER_2];
-    const completed = this.game.completedBoxes;
-    const remaining = BOARD_CONFIG.TOTAL_BOXES - completed;
+/* ============================================================
+   EVENT BINDINGS — HOME
+   ============================================================ */
+// Auth tab switch
+tabRegister.addEventListener('click', () => {
+  tabRegister.classList.add('active');
+  tabLogin.classList.remove('active');
+  panelReg.classList.add('active');
+  panelLogin.classList.remove('active');
+});
+tabLogin.addEventListener('click', () => {
+  tabLogin.classList.add('active');
+  tabRegister.classList.remove('active');
+  panelLogin.classList.add('active');
+  panelReg.classList.remove('active');
+});
 
-    this.p1ScoreEl.textContent = p1Score;
-    this.p2ScoreEl.textContent = p2Score;
-    this.boxesLeftEl.textContent = remaining;
-    this.boxesCompletedEl.textContent = completed;
+// Register
+btnRegister.addEventListener('click', () => {
+  const username = regUsernameInput.value.trim();
+  if (!username) {
+    setHint(regUsernameHint, 'Please enter a username.', 'err');
+    regUsernameInput.classList.add('error');
+    return;
+  }
+  const result = auth.register(username, regAvatar);
+  if (!result.success) {
+    setHint(regUsernameHint, result.error, 'err');
+    regUsernameInput.classList.add('error');
+    regUsernameInput.classList.remove('success');
+    return;
+  }
+  state.p1User = result.user;
+  refreshProfileChip(result.user);
+  showHomePanel('mode');
+  refreshLeaderboard();
+});
 
-    // Progress bar
-    const p1Pct = (p1Score / BOARD_CONFIG.TOTAL_BOXES) * 100;
-    const p2Pct = (p2Score / BOARD_CONFIG.TOTAL_BOXES) * 100;
-    this.progressFillP1.style.width = `${p1Pct}%`;
-    this.progressFillP2.style.width = `${p2Pct}%`;
+// Username uniqueness live check on register input
+regUsernameInput.addEventListener('input', () => {
+  const v = regUsernameInput.value.trim();
+  if (!v) { clearHint(regUsernameHint); regUsernameInput.classList.remove('error', 'success'); return; }
+  if (v.length < 2) {
+    setHint(regUsernameHint, 'Too short (min 2 chars).', 'err');
+    regUsernameInput.classList.add('error');
+    regUsernameInput.classList.remove('success');
+    return;
+  }
+  if (auth.isUsernameTaken(v)) {
+    setHint(regUsernameHint, `"${v}" is already taken.`, 'err');
+    regUsernameInput.classList.add('error');
+    regUsernameInput.classList.remove('success');
+  } else {
+    setHint(regUsernameHint, '✓ Name is available!', 'ok');
+    regUsernameInput.classList.remove('error');
+    regUsernameInput.classList.add('success');
+  }
+});
 
-    // Active player highlight
-    const curr = this.game.currentPlayer;
-    const p1Name = this.p1NameEl.textContent;
-    const p2Name = this.p2NameEl.textContent;
+// Login
+btnLogin.addEventListener('click', () => {
+  const username = loginUsernameInput.value.trim();
+  if (!username) {
+    setHint(loginHint, 'Please enter your username.', 'err');
+    return;
+  }
+  const result = auth.login(username);
+  if (!result.success) {
+    setHint(loginHint, result.error, 'err');
+    loginUsernameInput.classList.add('error');
+    return;
+  }
+  state.p1User = result.user;
+  refreshProfileChip(result.user);
+  showHomePanel('mode');
+  refreshLeaderboard();
+});
 
-    if (curr === PLAYERS.PLAYER_1) {
-      this.p1CardEl.classList.add('active');
-      this.p2CardEl.classList.remove('active');
-      this.turnIndicatorEl.className = 'turn-indicator player-1-active';
-      this.turnTextEl.textContent = `${p1Name}'s Turn`;
+// Change user
+btnChangeUser.addEventListener('click', () => {
+  auth.logout();
+  state.p1User = null;
+  regUsernameInput.value = '';
+  loginUsernameInput.value = '';
+  clearHint(regUsernameHint);
+  clearHint(loginHint);
+  showHomePanel('profile');
+});
+
+// Mode Buttons
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    state.mode = mode;
+
+    if (mode === 'offline') {
+      offlineP2Input.value = '';
+      clearHint(offlineP2Hint);
+      showHomePanel('offline-p2');
+    } else if (mode === 'online') {
+      showHomePanel('online-lobby');
+      showOnlineLobby(true);
     } else {
-      this.p2CardEl.classList.add('active');
-      this.p1CardEl.classList.remove('active');
-      this.turnIndicatorEl.className = 'turn-indicator player-2-active';
-      this.turnTextEl.textContent = `${p2Name}'s Turn`;
+      // AI modes — start immediately
+      state.p2User = null;
+      startGame();
     }
+  });
+});
 
-    this.btnUndo.disabled = this.game.moveHistory.length === 0 || 
-                           this.isAiThinking || 
-                           this.currentMode === GAME_MODES.ONLINE_MULTIPLAYER;
+// Offline P2 setup
+btnOfflineBack.addEventListener('click', () => showHomePanel('mode'));
+btnOfflineStart.addEventListener('click', () => {
+  const p2Name = offlineP2Input.value.trim();
+  if (!p2Name || p2Name.length < 2) {
+    setHint(offlineP2Hint, 'Enter a name (min 2 chars).', 'err');
+    return;
+  }
+  // Must be different from P1
+  if (p2Name.toLowerCase() === state.p1User.id) {
+    setHint(offlineP2Hint, 'Player 2 must have a different name than Player 1.', 'err');
+    offlineP2Input.classList.add('error');
+    return;
+  }
+  state.p2User = {
+    id: p2Name.toLowerCase(),
+    username: p2Name,
+    avatar: offlineP2Avatar,
+    wins: 0, losses: 0, draws: 0, gamesPlayed: 0
+  };
+  startGame();
+});
+
+// Live check for P2 name conflict
+offlineP2Input.addEventListener('input', () => {
+  const v = offlineP2Input.value.trim();
+  if (!v) { clearHint(offlineP2Hint); offlineP2Input.classList.remove('error', 'success'); return; }
+  if (state.p1User && v.toLowerCase() === state.p1User.id) {
+    setHint(offlineP2Hint, 'Must be different from Player 1.', 'err');
+    offlineP2Input.classList.add('error');
+    offlineP2Input.classList.remove('success');
+  } else if (v.length >= 2) {
+    setHint(offlineP2Hint, '✓ Good to go!', 'ok');
+    offlineP2Input.classList.remove('error');
+    offlineP2Input.classList.add('success');
+  } else {
+    clearHint(offlineP2Hint);
+  }
+});
+
+// Online lobby
+btnOnlineBack.addEventListener('click', () => {
+  if (onlineEngine) { onlineEngine.disconnect(); onlineEngine = null; }
+  showOnlineLobby(false);
+  showHomePanel('mode');
+});
+
+btnCreateRoom.addEventListener('click', async () => {
+  initOnlineEngine();
+  roomCodeDisplay.classList.add('hidden');
+  btnCreateRoom.disabled = true;
+  btnCreateRoom.textContent = '⏳ Setting up...';
+  await onlineEngine.createRoom(state.p1User);
+  btnCreateRoom.disabled = false;
+  btnCreateRoom.textContent = '➕ Create Room';
+});
+
+btnJoinRoom.addEventListener('click', async () => {
+  const code = inputJoinCode.value.trim().toUpperCase();
+  if (!code) { joinStatusMsg.textContent = 'Enter a room code.'; joinStatusMsg.className = 'input-hint err'; return; }
+  initOnlineEngine();
+  joinStatusMsg.textContent = 'Connecting...';
+  joinStatusMsg.className = 'input-hint';
+  await onlineEngine.joinRoom(code, state.p1User);
+});
+
+btnCopyRoomCode.addEventListener('click', () => {
+  navigator.clipboard.writeText(roomCodeValue.textContent).then(() => {
+    btnCopyRoomCode.textContent = '✅ Copied!';
+    setTimeout(() => { btnCopyRoomCode.textContent = '📋 Copy'; }, 2000);
+  });
+});
+
+/* ============================================================
+   GAME STARTUP
+   ============================================================ */
+function startGame() {
+  // Configure names and avatars
+  const p1 = state.p1User;
+  const mode = state.mode;
+
+  p1NameEl.textContent  = p1.username;
+  p1AvatarEl.textContent = p1.avatar;
+
+  if (mode === 'offline') {
+    const p2 = state.p2User;
+    p2NameEl.textContent  = p2.username;
+    p2AvatarEl.textContent = p2.avatar;
+    btnUndo.style.display = '';
+  } else if (mode === 'ai_easy') {
+    p2NameEl.textContent  = 'AI (Casual)';
+    p2AvatarEl.textContent = '🤖';
+    btnUndo.style.display = '';
+  } else if (mode === 'ai_smart') {
+    p2NameEl.textContent  = 'AI (Smart)';
+    p2AvatarEl.textContent = '🧠';
+    btnUndo.style.display = '';
   }
 
-  handleUndo() {
-    if (this.game.moveHistory.length === 0 || this.isAiThinking) return;
+  // Hide undo in online
+  btnUndo.style.display = (mode === 'online') ? 'none' : '';
 
-    this.closeGameOverModal();
+  resetGameState();
+  showScreen('game');
+  showHomePanel('mode');
+}
 
-    if (this.currentMode !== GAME_MODES.PASS_AND_PLAY && this.currentMode !== GAME_MODES.ONLINE_MULTIPLAYER) {
-      while (this.game.moveHistory.length > 0) {
-        const undone = this.game.undoMove();
-        if (undone && undone.player === PLAYERS.PLAYER_1) break;
-      }
-    } else {
-      this.game.undoMove();
+function startOnlineGame() {
+  const p1 = state.p1User;
+  const myIdx = state.myOnlineIndex;
+
+  if (myIdx === 1) {
+    // I am Host → P1
+    p1NameEl.textContent  = p1.username;
+    p1AvatarEl.textContent = p1.avatar;
+    p2NameEl.textContent  = 'Opponent';
+    p2AvatarEl.textContent = '👾';
+  } else {
+    // I am Joiner → P2
+    p2NameEl.textContent  = p1.username;
+    p2AvatarEl.textContent = p1.avatar;
+    p1NameEl.textContent  = 'Opponent';
+    p1AvatarEl.textContent = '👾';
+  }
+
+  btnUndo.style.display = 'none';
+  resetGameState();
+  showScreen('game');
+}
+
+function resetGameState() {
+  state.game.reset();
+  state.isAiThinking = false;
+  clearBanner();
+  initBoardSVG();
+  updateGameUI();
+  turnTimer.start();
+}
+
+/* ============================================================
+   BOARD SVG GENERATION
+   ============================================================ */
+function initBoardSVG() {
+  const boxSize = 62;
+  const padding = 34;
+  const W = padding * 2 + (BOARD_CONFIG.DOT_COLS - 1) * boxSize;
+  const H = padding * 2 + (BOARD_CONFIG.DOT_ROWS - 1) * boxSize;
+
+  boardSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  boardSvg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const mkEl = (tag, attrs) => {
+    const el = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+    return el;
+  };
+
+  // ── Boxes
+  const boxG = mkEl('g', { id: 'boxes-layer' });
+  for (let r = 0; r < BOARD_CONFIG.BOX_ROWS; r++) {
+    for (let c = 0; c < BOARD_CONFIG.BOX_COLS; c++) {
+      const x = padding + c * boxSize, y = padding + r * boxSize;
+      const g = mkEl('g', { class: 'box-item', id: `box-${r}-${c}` });
+      g.appendChild(mkEl('rect', { x, y, width: boxSize, height: boxSize, class: 'box-rect', rx: 5, ry: 5 }));
+      const txt = mkEl('text', { x: x + boxSize / 2, y: y + boxSize / 2 + 6, 'text-anchor': 'middle', class: 'box-label' });
+      txt.textContent = '';
+      g.appendChild(txt);
+      boxG.appendChild(g);
     }
-
-    this.initBoardSVG();
-    this.redrawAllFromHistory();
-    this.updateUI();
-    this.turnTimer.start();
   }
+  boardSvg.appendChild(boxG);
 
-  redrawAllFromHistory() {
-    const history = [...this.game.moveHistory];
-    this.game.reset();
+  // ── Lines
+  const lineG = mkEl('g', { id: 'lines-layer' });
 
-    for (const move of history) {
-      const result = this.game.makeMove(move.type, move.row, move.col);
-      const lineId = `${move.type}-line-${move.row}-${move.col}`;
-      const lineGroup = document.getElementById(lineId);
-      if (lineGroup) {
-        lineGroup.classList.add('drawn', `player-${move.player}`);
-      }
-
-      if (result.completedBoxes.length > 0) {
-        result.completedBoxes.forEach((box) => {
-          const boxEl = document.getElementById(`box-${box.row}-${box.col}`);
-          if (boxEl) {
-            boxEl.classList.add('claimed', `player-${move.player}`);
-            const label = boxEl.querySelector('.box-label');
-            if (label) {
-              const avatar = move.player === 1 ? this.p1AvatarEl.textContent : this.p2AvatarEl.textContent;
-              label.textContent = avatar || PLAYER_CONFIG[move.player].avatar;
-            }
-          }
-        });
-      }
+  // Horizontal (8 rows × 7 cols = 56)
+  for (let r = 0; r < BOARD_CONFIG.DOT_ROWS; r++) {
+    for (let c = 0; c < BOARD_CONFIG.BOX_COLS; c++) {
+      const x1 = padding + c * boxSize, y = padding + r * boxSize, x2 = x1 + boxSize;
+      const g = mkEl('g', { class: 'line-group horizontal-line', id: `h-line-${r}-${c}` });
+      g.appendChild(mkEl('line', { x1, y1: y, x2, y2: y, class: 'grid-line' }));
+      g.appendChild(mkEl('line', { x1, y1: y, x2, y2: y, class: 'line-hitarea' }));
+      g.addEventListener('click', () => handleLineClick('h', r, c));
+      lineG.appendChild(g);
     }
   }
 
-  handleNewGame() {
-    this.closeGameOverModal();
-    this.game.reset();
-    this.isAiThinking = false;
-    this.initBoardSVG();
-    this.updateUI();
-    this.turnTimer.start();
-    if (this.bannerTimeout) clearTimeout(this.bannerTimeout);
-    this.bannerEl.classList.remove('show');
-  }
-
-  handleModeChange(newMode) {
-    this.currentMode = newMode;
-    if (newMode === GAME_MODES.ONLINE_MULTIPLAYER) {
-      this.openOnlineModal();
-    } else if (newMode === GAME_MODES.PASS_AND_PLAY) {
-      this.p2NameEl.textContent = 'Player 2';
-      this.p2AvatarEl.textContent = 'P2';
-      this.handleNewGame();
-    } else if (newMode === GAME_MODES.VS_AI_EASY) {
-      this.p2NameEl.textContent = 'AI (Casual)';
-      this.p2AvatarEl.textContent = '🤖';
-      this.handleNewGame();
-    } else {
-      this.p2NameEl.textContent = 'AI (Smart)';
-      this.p2AvatarEl.textContent = '🧠';
-      this.handleNewGame();
+  // Vertical (7 rows × 8 cols = 56)
+  for (let r = 0; r < BOARD_CONFIG.BOX_ROWS; r++) {
+    for (let c = 0; c < BOARD_CONFIG.DOT_COLS; c++) {
+      const x = padding + c * boxSize, y1 = padding + r * boxSize, y2 = y1 + boxSize;
+      const g = mkEl('g', { class: 'line-group vertical-line', id: `v-line-${r}-${c}` });
+      g.appendChild(mkEl('line', { x1: x, y1, x2: x, y2, class: 'grid-line' }));
+      g.appendChild(mkEl('line', { x1: x, y1, x2: x, y2, class: 'line-hitarea' }));
+      g.addEventListener('click', () => handleLineClick('v', r, c));
+      lineG.appendChild(g);
     }
   }
+  boardSvg.appendChild(lineG);
 
-  handleMuteToggle() {
-    const muted = sound.toggleMute();
-    this.btnMute.innerHTML = muted ? '🔇' : '🔊';
-  }
-
-  openLoginModal() {
-    this.turnTimer.pause();
-    this.loginModal.classList.add('active');
-  }
-
-  closeLoginModal() {
-    this.loginModal.classList.remove('active');
-    this.turnTimer.resume();
-  }
-
-  openOnlineModal() {
-    this.turnTimer.pause();
-    this.onlineModal.classList.add('active');
-  }
-
-  closeOnlineModal() {
-    this.onlineModal.classList.remove('active');
-    this.turnTimer.resume();
-  }
-
-  showGameOverModal(winner) {
-    const p1Score = this.game.scores[PLAYERS.PLAYER_1];
-    const p2Score = this.game.scores[PLAYERS.PLAYER_2];
-
-    this.modalP1Score.textContent = p1Score;
-    this.modalP2Score.textContent = p2Score;
-    this.modalP1Label.textContent = this.p1NameEl.textContent;
-    this.modalP2Label.textContent = this.p2NameEl.textContent;
-
-    if (winner === PLAYERS.PLAYER_1) {
-      this.modalTitle.textContent = `🎉 ${this.p1NameEl.textContent.toUpperCase()} WINS!`;
-      this.modalTitle.style.color = PLAYER_CONFIG[1].color;
-      this.modalSub.textContent = `Claimed ${p1Score} out of 49 boxes!`;
-    } else if (winner === PLAYERS.PLAYER_2) {
-      this.modalTitle.textContent = `🏆 ${this.p2NameEl.textContent.toUpperCase()} WINS!`;
-      this.modalTitle.style.color = PLAYER_CONFIG[2].color;
-      this.modalSub.textContent = `Claimed ${p2Score} out of 49 boxes!`;
-    } else {
-      this.modalTitle.textContent = '🤝 IT\'S A DRAW!';
-      this.modalTitle.style.color = '#eab308';
-      this.modalSub.textContent = 'Both players claimed equal boxes!';
+  // ── Dots (8×8 = 64)
+  const dotG = mkEl('g', { id: 'dots-layer' });
+  for (let r = 0; r < BOARD_CONFIG.DOT_ROWS; r++) {
+    for (let c = 0; c < BOARD_CONFIG.DOT_COLS; c++) {
+      dotG.appendChild(mkEl('circle', {
+        cx: padding + c * boxSize,
+        cy: padding + r * boxSize,
+        r: 5.5, class: 'grid-dot'
+      }));
     }
+  }
+  boardSvg.appendChild(dotG);
+}
 
-    this.gameOverModal.classList.add('active');
+/* ============================================================
+   MOVE PROCESSING
+   ============================================================ */
+function handleLineClick(type, row, col) {
+  if (state.game.isGameOver || state.isAiThinking) return;
+
+  const curr = state.game.currentPlayer;
+
+  // Online: only accept clicks when it's MY turn
+  if (state.mode === 'online') {
+    if (curr !== state.myOnlineIndex) return;
+  }
+  // AI modes: block clicks when AI is thinking (P2's turn)
+  if (state.mode === 'ai_easy' || state.mode === 'ai_smart') {
+    if (curr === PLAYERS.PLAYER_2) return;
   }
 
-  closeGameOverModal() {
-    this.gameOverModal.classList.remove('active');
+  const res = processMove(type, row, col, true /* local */);
+  if (res && res.success && state.mode === 'online' && onlineEngine) {
+    onlineEngine.sendMove(type, row, col);
   }
 }
 
-// Bootstrap on DOM Load
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new DotsAndBoxesApp();
+function processMove(type, row, col, isLocal) {
+  const result = state.game.makeMove(type, row, col);
+  if (!result.success) return result;
+
+  const player = result.move.player;
+  sound.playLineClick();
+
+  // ── Highlight line
+  const lineEl = document.getElementById(`${type}-line-${row}-${col}`);
+  if (lineEl) {
+    lineEl.classList.add('drawn', `player-${player}`);
+    lineEl.classList.add('just-drawn');
+    setTimeout(() => lineEl.classList.remove('just-drawn'), 400);
+  }
+
+  // ── Animate claimed boxes
+  if (result.completedBoxes.length > 0) {
+    sound.playBoxComplete(result.completedBoxes.length > 1);
+    const avatar = player === 1 ? p1AvatarEl.textContent : p2AvatarEl.textContent;
+    result.completedBoxes.forEach(({ row: r, col: c }) => {
+      const boxEl = document.getElementById(`box-${r}-${c}`);
+      if (boxEl) {
+        boxEl.classList.add('claimed', `player-${player}`);
+        const txt = boxEl.querySelector('.box-label');
+        if (txt) txt.textContent = avatar;
+      }
+    });
+    const extra = result.completedBoxes.length === 1 ? '+1 BOX!' : '+2 BOXES!';
+    showBanner(`${extra} EXTRA TURN!`, player);
+  }
+
+  // ── Restart timer (stop on game over)
+  if (result.isGameOver) {
+    turnTimer.stop();
+  } else {
+    turnTimer.start();
+  }
+
+  updateGameUI();
+
+  if (result.isGameOver) {
+    sound.playGameOver();
+    resolveMatchEnd(result.winner);
+    return result;
+  }
+
+  // AI move
+  if ((state.mode === 'ai_easy' || state.mode === 'ai_smart') && state.game.currentPlayer === PLAYERS.PLAYER_2) {
+    scheduleAiMove();
+  }
+
+  return result;
+}
+
+function scheduleAiMove() {
+  state.isAiThinking = true;
+  setTimeout(() => {
+    if (state.game.isGameOver) { state.isAiThinking = false; return; }
+    const aiMove = DotsAndBoxesAI.getMove(state.game, state.mode === 'ai_smart' ? 'vs_ai_smart' : 'vs_ai_easy');
+    state.isAiThinking = false;
+    if (aiMove) processMove(aiMove.type, aiMove.row, aiMove.col, false);
+  }, 480);
+}
+
+/* ============================================================
+   TURN TIMEOUT
+   ============================================================ */
+function handleTurnTimeout(fromRemote = false) {
+  if (state.game.isGameOver) return;
+
+  const result = state.game.handleTimeout();
+  if (!result.success) return;
+
+  sound.playTimeout();
+  showBanner(`⏰ TIME'S UP! TURN SKIPPED`, result.skippedPlayer);
+
+  // In online mode, broadcast timeout to peer (only if this happened locally)
+  if (!fromRemote && state.mode === 'online' && onlineEngine && result.skippedPlayer === state.myOnlineIndex) {
+    onlineEngine.sendTimeout();
+  }
+
+  updateGameUI();
+  turnTimer.start();
+
+  // If AI's turn after timeout
+  if ((state.mode === 'ai_easy' || state.mode === 'ai_smart') && state.game.currentPlayer === PLAYERS.PLAYER_2) {
+    scheduleAiMove();
+  }
+}
+
+/* ============================================================
+   DISCONNECT WIN (Online)
+   ============================================================ */
+function showDisconnectWin(winnerIndex) {
+  const winnerName = winnerIndex === 1 ? p1NameEl.textContent : p2NameEl.textContent;
+  const winnerAvatar = winnerIndex === 1 ? p1AvatarEl.textContent : p2AvatarEl.textContent;
+
+  recordMatchStats('disconnect_win', winnerIndex);
+
+  winnerTrophy.textContent = '🏆';
+  modalWinnerTitle.textContent = `${winnerName} Wins!`;
+  modalWinnerTitle.style.color = winnerIndex === 1 ? 'var(--p1)' : 'var(--p2)';
+  modalSubtitle.textContent = 'Opponent disconnected from the game.';
+  modalP1Label.textContent = p1NameEl.textContent;
+  modalP2Label.textContent = p2NameEl.textContent;
+  modalP1Avatar.textContent = p1AvatarEl.textContent;
+  modalP2Avatar.textContent = p2AvatarEl.textContent;
+  modalP1Score.textContent = state.game.scores[1];
+  modalP2Score.textContent = state.game.scores[2];
+
+  gameOverModal.classList.add('active');
+}
+
+/* ============================================================
+   MATCH END & STAT RECORDING
+   ============================================================ */
+function resolveMatchEnd(winner) {
+  recordMatchStats('normal', winner);
+
+  const p1Score = state.game.scores[1];
+  const p2Score = state.game.scores[2];
+
+  if (winner === 'DRAW') {
+    winnerTrophy.textContent = '🤝';
+    modalWinnerTitle.textContent = "It's a Draw!";
+    modalWinnerTitle.style.color = 'var(--gold)';
+    modalSubtitle.textContent = 'Both players scored equally!';
+  } else {
+    const winnerName = winner === 1 ? p1NameEl.textContent : p2NameEl.textContent;
+    winnerTrophy.textContent = '🏆';
+    modalWinnerTitle.textContent = `${winnerName} Wins!`;
+    modalWinnerTitle.style.color = winner === 1 ? 'var(--p1)' : 'var(--p2)';
+    modalSubtitle.textContent = `${winner === 1 ? p1Score : p2Score} boxes claimed out of 49!`;
+  }
+
+  modalP1Label.textContent = p1NameEl.textContent;
+  modalP2Label.textContent = p2NameEl.textContent;
+  modalP1Avatar.textContent = p1AvatarEl.textContent;
+  modalP2Avatar.textContent = p2AvatarEl.textContent;
+  modalP1Score.textContent = p1Score;
+  modalP2Score.textContent = p2Score;
+
+  setTimeout(() => gameOverModal.classList.add('active'), 400);
+}
+
+function recordMatchStats(type, winner) {
+  if (!state.p1User) return;
+
+  if (type === 'disconnect_win') {
+    // winner = myOnlineIndex → I won because opponent left
+    if (winner === state.myOnlineIndex) {
+      auth.recordMatch(state.p1User.id, 'win');
+    } else {
+      auth.recordMatch(state.p1User.id, 'loss');
+    }
+    return;
+  }
+
+  // Normal finish
+  if (winner === 'DRAW') {
+    auth.recordMatch(state.p1User.id, 'draw');
+    // In offline mode, also record for P2 if they have an account
+  } else if (winner === 1) {
+    auth.recordMatch(state.p1User.id, state.mode === 'online' && state.myOnlineIndex === 2 ? 'loss' : 'win');
+  } else {
+    auth.recordMatch(state.p1User.id, state.mode === 'online' && state.myOnlineIndex === 1 ? 'loss' : 'win');
+  }
+}
+
+/* ============================================================
+   UI UPDATE
+   ============================================================ */
+function updateGameUI() {
+  const p1Score = state.game.scores[1];
+  const p2Score = state.game.scores[2];
+  const completed = state.game.completedBoxes;
+
+  p1ScoreEl.textContent = p1Score;
+  p2ScoreEl.textContent = p2Score;
+  boxesCompletedEl.textContent = completed;
+  boxesLeftEl.textContent = BOARD_CONFIG.TOTAL_BOXES - completed;
+
+  const p1Pct = (p1Score / BOARD_CONFIG.TOTAL_BOXES) * 100;
+  const p2Pct = (p2Score / BOARD_CONFIG.TOTAL_BOXES) * 100;
+  progressP1.style.width = `${p1Pct}%`;
+  progressP2.style.width = `${p2Pct}%`;
+
+  const curr = state.game.currentPlayer;
+
+  if (curr === PLAYERS.PLAYER_1) {
+    p1CardEl.classList.add('active'); p2CardEl.classList.remove('active');
+    turnIndicatorEl.className = 'turn-indicator player-1-active';
+    turnIndicatorEl.innerHTML = `<span class="turn-dot player-1-dot"></span><span id="turn-text">${p1NameEl.textContent}'s Turn</span>`;
+  } else {
+    p2CardEl.classList.add('active'); p1CardEl.classList.remove('active');
+    turnIndicatorEl.className = 'turn-indicator player-2-active';
+    turnIndicatorEl.innerHTML = `<span class="turn-dot player-2-dot"></span><span id="turn-text">${p2NameEl.textContent}'s Turn</span>`;
+  }
+
+  btnUndo.disabled = state.game.moveHistory.length === 0 || state.isAiThinking;
+}
+
+/* ============================================================
+   BANNER
+   ============================================================ */
+function showBanner(msg, player) {
+  if (state.bannerTimeout) clearTimeout(state.bannerTimeout);
+  bannerTextEl.textContent = msg;
+  bannerEl.className = `game-banner show player-${player}`;
+  state.bannerTimeout = setTimeout(() => bannerEl.classList.remove('show'), 1300);
+}
+
+function clearBanner() {
+  if (state.bannerTimeout) clearTimeout(state.bannerTimeout);
+  bannerEl.className = 'game-banner';
+}
+
+/* ============================================================
+   IN-GAME CONTROLS
+   ============================================================ */
+btnNewGame.addEventListener('click', () => {
+  gameOverModal.classList.remove('active');
+  resetGameState();
 });
+
+btnPlayAgain.addEventListener('click', () => {
+  gameOverModal.classList.remove('active');
+  resetGameState();
+});
+
+btnGoHome.addEventListener('click', () => {
+  gameOverModal.classList.remove('active');
+  exitToHome();
+});
+
+btnMute.addEventListener('click', () => {
+  const muted = sound.toggleMute();
+  btnMute.textContent = muted ? '🔇' : '🔊';
+});
+
+btnUndo.addEventListener('click', () => {
+  if (state.game.moveHistory.length === 0 || state.isAiThinking) return;
+
+  // In AI mode, undo AI move + player move together
+  if (state.mode === 'ai_easy' || state.mode === 'ai_smart') {
+    // Undo until it's P1's turn again
+    while (state.game.moveHistory.length > 0) {
+      const un = state.game.undoMove();
+      if (un && un.player === PLAYERS.PLAYER_1) break;
+    }
+  } else {
+    state.game.undoMove();
+  }
+
+  // Redraw board
+  initBoardSVG();
+  // Replay existing history visually
+  const hist = [...state.game.moveHistory];
+  state.game.reset();
+  hist.forEach(mv => {
+    const res = state.game.makeMove(mv.type, mv.row, mv.col);
+    const lineEl = document.getElementById(`${mv.type}-line-${mv.row}-${mv.col}`);
+    if (lineEl) lineEl.classList.add('drawn', `player-${mv.player}`);
+    if (res.completedBoxes.length > 0) {
+      const av = mv.player === 1 ? p1AvatarEl.textContent : p2AvatarEl.textContent;
+      res.completedBoxes.forEach(({ row: r, col: c }) => {
+        const boxEl = document.getElementById(`box-${r}-${c}`);
+        if (boxEl) {
+          boxEl.classList.add('claimed', `player-${mv.player}`);
+          const txt = boxEl.querySelector('.box-label');
+          if (txt) txt.textContent = av;
+        }
+      });
+    }
+  });
+
+  updateGameUI();
+  turnTimer.start();
+});
+
+// Exit button (with forfeit confirm in online)
+btnExitGame.addEventListener('click', () => {
+  if (state.mode === 'online' && !state.game.isGameOver) {
+    exitConfirmModal.classList.add('active');
+  } else {
+    exitToHome();
+  }
+});
+
+btnConfirmExit.addEventListener('click', () => {
+  exitConfirmModal.classList.remove('active');
+  // Forfeit: opponent wins
+  if (onlineEngine && onlineEngine.isConnected()) {
+    // Disconnect triggers opponent's onDisconnected → they win
+    onlineEngine.disconnect();
+    onlineEngine = null;
+  }
+  auth.recordMatch(state.p1User.id, 'loss');
+  exitToHome();
+});
+
+btnCancelExit.addEventListener('click', () => {
+  exitConfirmModal.classList.remove('active');
+});
+
+function exitToHome() {
+  turnTimer.stop();
+  clearBanner();
+  gameOverModal.classList.remove('active');
+  exitConfirmModal.classList.remove('active');
+  if (onlineEngine) { onlineEngine.disconnect(); onlineEngine = null; }
+  refreshProfileChip(auth.getCurrentUser() || state.p1User);
+  refreshLeaderboard();
+  showHomePanel('mode');
+  showScreen('home');
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  showScreen('home');
+  initHomeScreen();
+});
+
+function setHint(el, msg, cls) {
+  el.textContent = msg;
+  el.className = `input-hint ${cls}`;
+}
+function clearHint(el) {
+  el.textContent = '';
+  el.className = 'input-hint';
+}

@@ -3,99 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="A modern, polished 7x7 Dots and Boxes online multiplayer game with 20s turn timer, JSON profiles, and smooth animations.">
-  <title>Dots & Boxes (7×7) - Online Multiplayer</title>
+  <meta name="description" content="7×7 Dots and Boxes — Online Multiplayer, vs AI, or Offline. Login with your unique name, invite a friend with a room code, and play with a 20-second turn timer.">
+  <title>Dots & Boxes — Online Multiplayer</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- PeerJS for WebRTC Online Multiplayer -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <main class="game-container">
-    <!-- Top Player Profile & Global Status -->
-    <header class="top-nav">
-      <div id="user-profile-btn" class="user-chip" title="Click to edit profile / change account">
-        <span id="user-avatar-badge" class="avatar-icon">⚡</span>
-        <span id="user-name-display" class="user-display-name">Player 1</span>
-        <span id="user-stats-badge" class="stats-pill">0W - 0L</span>
+  <!-- =====================================================================
+       HOME SCREEN (shown on first load, before game starts)
+  ====================================================================== -->
+  <div id="home-screen" class="screen active">
+
+    <!-- Hero -->
+    <div class="home-hero">
+      <div class="home-logo">
+        <div class="logo-dots">
+          <span class="ld p1"></span><span class="ld"></span><span class="ld p2"></span>
+          <span class="ld"></span><span class="ld p1"></span><span class="ld"></span><span class="ld p2"></span>
+          <span class="ld p2"></span><span class="ld"></span><span class="ld p1"></span>
+        </div>
+      </div>
+      <h1 class="home-title">DOTS & BOXES</h1>
+      <p class="home-sub">7 × 7 Board · 20s Turn Timer · Real-Time Online Play</p>
+    </div>
+
+    <!-- Profile Setup Card -->
+    <div class="home-card profile-card" id="profile-setup-card">
+      <h2 class="card-title">🧑 Your Player Profile</h2>
+
+      <!-- Tabs: Login vs Register -->
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="tab-register" data-tab="register">New Player</button>
+        <button class="tab-btn" id="tab-login" data-tab="login">Returning Player</button>
       </div>
 
-      <h1 class="game-title">
-        DOTS & BOXES
-        <span class="game-badge">7×7</span>
-      </h1>
+      <!-- Register Panel -->
+      <div id="panel-register" class="auth-panel active">
+        <div class="form-group">
+          <label class="form-label">Choose a unique username</label>
+          <input type="text" id="reg-username" class="form-input" placeholder="e.g. Vignesh" maxlength="16" autocomplete="off">
+          <span id="reg-username-hint" class="input-hint"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pick your avatar</label>
+          <div id="reg-avatar-picker" class="avatar-grid"></div>
+        </div>
+        <button id="btn-register" class="btn btn-primary full-w">Create Profile & Continue →</button>
+      </div>
 
-      <div class="nav-actions">
-        <button id="btn-open-profile" class="icon-btn" title="Player Profile / JSON Login">
-          👤
+      <!-- Login Panel -->
+      <div id="panel-login" class="auth-panel">
+        <div class="form-group">
+          <label class="form-label">Enter your username</label>
+          <input type="text" id="login-username" class="form-input" placeholder="Your existing username" maxlength="16" autocomplete="off">
+          <span id="login-hint" class="input-hint"></span>
+        </div>
+        <button id="btn-login" class="btn btn-primary full-w">Sign In →</button>
+      </div>
+    </div>
+
+    <!-- Mode Selection (shown after profile is confirmed) -->
+    <div class="home-card mode-card hidden" id="mode-select-card">
+      <div class="active-profile-chip" id="active-profile-chip">
+        <span id="chip-avatar">⚡</span>
+        <div>
+          <strong id="chip-name">Player</strong>
+          <span id="chip-stats" class="chip-stats">0W · 0L · 0D</span>
+        </div>
+        <button id="btn-change-user" class="chip-change-btn" title="Change player">✏️</button>
+      </div>
+
+      <h2 class="card-title">🎮 Choose Game Mode</h2>
+      <div class="mode-grid">
+        <button class="mode-btn" id="mode-btn-offline" data-mode="offline">
+          <span class="mode-icon">🤝</span>
+          <span class="mode-name">Offline</span>
+          <span class="mode-desc">2 Players · Same Device</span>
         </button>
-        <button id="btn-mute" class="icon-btn" title="Toggle sound">
-          🔊
+        <button class="mode-btn" id="mode-btn-online" data-mode="online">
+          <span class="mode-icon">🌐</span>
+          <span class="mode-name">Online</span>
+          <span class="mode-desc">Play via Room Code</span>
+        </button>
+        <button class="mode-btn" id="mode-btn-ai-easy" data-mode="ai_easy">
+          <span class="mode-icon">🤖</span>
+          <span class="mode-name">vs AI (Easy)</span>
+          <span class="mode-desc">Casual Opponent</span>
+        </button>
+        <button class="mode-btn" id="mode-btn-ai-smart" data-mode="ai_smart">
+          <span class="mode-icon">🧠</span>
+          <span class="mode-name">vs AI (Smart)</span>
+          <span class="mode-desc">Strategic AI</span>
         </button>
       </div>
+    </div>
+
+    <!-- Offline: Second player name entry -->
+    <div class="home-card hidden" id="offline-player2-card">
+      <h2 class="card-title">🤝 Offline — Enter Player 2</h2>
+      <p class="card-sub">Player 2 must have a different name than Player 1.</p>
+      <div class="form-group">
+        <label class="form-label">Player 2 Username</label>
+        <input type="text" id="offline-p2-username" class="form-input" placeholder="e.g. Alex" maxlength="16" autocomplete="off">
+        <span id="offline-p2-hint" class="input-hint"></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Player 2 Avatar</label>
+        <div id="offline-p2-avatar-picker" class="avatar-grid"></div>
+      </div>
+      <div class="btn-row">
+        <button id="btn-offline-back" class="btn btn-secondary">← Back</button>
+        <button id="btn-offline-start" class="btn btn-primary">Start Game →</button>
+      </div>
+    </div>
+
+    <!-- Online: Create / Join Room -->
+    <div class="home-card hidden" id="online-lobby-card">
+      <h2 class="card-title">🌐 Online Multiplayer</h2>
+      <p class="card-sub">Create a room and share the code, or enter a friend's code to join.</p>
+
+      <div class="lobby-options">
+        <div class="lobby-half">
+          <h3 class="lobby-sub-title">Host a Match</h3>
+          <button id="btn-create-room" class="btn btn-primary full-w">➕ Create Room</button>
+          <div id="room-code-display" class="room-code-box hidden">
+            <div class="room-code-row">
+              <strong id="room-code-value" class="room-code-text">BOX-1234</strong>
+              <button id="btn-copy-room-code" class="btn btn-sm">📋 Copy</button>
+            </div>
+            <div class="waiting-row">
+              <span class="pulse-dot"></span>
+              <span id="room-status-text">Waiting for opponent...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lobby-divider"><span>OR</span></div>
+
+        <div class="lobby-half">
+          <h3 class="lobby-sub-title">Join a Match</h3>
+          <div class="join-row">
+            <input type="text" id="input-join-code" class="form-input" placeholder="BOX-XXXX" maxlength="10" autocomplete="off">
+            <button id="btn-join-room" class="btn btn-primary">🚀 Join</button>
+          </div>
+          <span id="join-status-msg" class="input-hint"></span>
+        </div>
+      </div>
+
+      <button id="btn-online-back" class="btn btn-secondary mt-2">← Back to Modes</button>
+    </div>
+
+    <!-- Leaderboard / Stats -->
+    <div class="home-card" id="leaderboard-card">
+      <h2 class="card-title">🏆 Leaderboard</h2>
+      <div id="leaderboard-list" class="leaderboard-list">
+        <p class="empty-msg">No players yet. Be the first!</p>
+      </div>
+    </div>
+
+  </div><!-- /#home-screen -->
+
+
+  <!-- =====================================================================
+       GAME SCREEN (shown when a match starts)
+  ====================================================================== -->
+  <div id="game-screen" class="screen">
+
+    <!-- Top bar -->
+    <header class="game-top-bar">
+      <button id="btn-exit-game" class="icon-btn" title="Exit to Home">🏠</button>
+      <h1 class="game-title-small">DOTS & BOXES <span class="game-badge">7×7</span></h1>
+      <button id="btn-mute" class="icon-btn" title="Toggle sound">🔊</button>
     </header>
 
-    <!-- Controls & Game Mode Bar -->
-    <section class="game-controls" aria-label="Game controls">
-      <div class="control-group">
-        <select id="mode-selector" class="select-dropdown" title="Select Game Mode">
-          <option value="pass_and_play">👥 2 Players (Pass & Play)</option>
-          <option value="online_multiplayer">🌐 Online Multiplayer (Live Room)</option>
-          <option value="vs_ai_easy">🤖 vs AI (Casual)</option>
-          <option value="vs_ai_smart">🧠 vs AI (Smart)</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <button id="btn-undo" class="btn" title="Undo last move" disabled>
-          ↩️ Undo
-        </button>
-        <button id="btn-new-game" class="btn" title="Restart Game">
-          🔄 New Game
-        </button>
-      </div>
-    </section>
-
     <!-- 20-Second Turn Countdown Timer -->
-    <section id="turn-timer-card" class="turn-timer-card" aria-label="Turn Timer">
+    <div id="turn-timer-card" class="turn-timer-card normal">
       <div class="timer-meta">
-        <span class="timer-label">⏱️ Turn Timer (20s)</span>
+        <span class="timer-label">⏱️ Turn Timer</span>
         <span id="timer-number" class="timer-seconds">20s</span>
       </div>
       <div class="timer-progress-track">
         <div id="timer-progress-bar" class="timer-progress-fill" style="width: 100%;"></div>
       </div>
-    </section>
+    </div>
 
     <!-- Scoreboard -->
-    <section class="scoreboard" aria-label="Scoreboard">
-      <!-- Player 1 Card -->
+    <section class="scoreboard">
       <div id="p1-card" class="player-card p1 active">
         <div class="player-info">
-          <div id="p1-avatar-el" class="player-avatar">P1</div>
+          <div id="p1-avatar-el" class="player-avatar p1-av">⚡</div>
           <div>
-            <div id="p1-name" class="player-name">Player 1</div>
-            <div class="turn-tag">Active Turn</div>
+            <div id="p1-name-el" class="player-name">Player 1</div>
+            <div class="turn-tag">Your Turn</div>
           </div>
         </div>
         <div id="p1-score" class="player-score">0</div>
       </div>
-
-      <!-- Player 2 Card -->
       <div id="p2-card" class="player-card p2">
         <div class="player-info">
-          <div id="p2-avatar-el" class="player-avatar">P2</div>
+          <div id="p2-avatar-el" class="player-avatar p2-av">🤖</div>
           <div>
-            <div id="p2-name" class="player-name">Player 2</div>
-            <div class="turn-tag">Active Turn</div>
+            <div id="p2-name-el" class="player-name">Player 2</div>
+            <div class="turn-tag">Your Turn</div>
           </div>
         </div>
         <div id="p2-score" class="player-score">0</div>
       </div>
     </section>
 
-    <!-- Status Bar & Progress -->
-    <section class="status-bar" aria-label="Game status">
+    <!-- Status Bar -->
+    <section class="status-bar">
       <div id="turn-indicator" class="turn-indicator player-1-active">
         <span class="turn-dot player-1-dot"></span>
         <span id="turn-text">Player 1's Turn</span>
@@ -106,135 +224,69 @@
       </div>
     </section>
 
-    <!-- Overall Game Progress Bar -->
-    <div class="progress-container" title="Board ownership breakdown">
+    <!-- Progress Bar -->
+    <div class="progress-container">
       <div id="progress-p1" class="progress-p1" style="width: 0%;"></div>
       <div id="progress-p2" class="progress-p2" style="width: 0%;"></div>
     </div>
 
-    <!-- Board Area -->
-    <section class="board-wrapper" aria-label="Dots and Boxes board">
-      <!-- Floating notification banner for completed boxes, extra turns, and timeouts -->
+    <!-- Board -->
+    <section class="board-wrapper">
       <div id="game-banner" class="game-banner" role="status">
-        <span id="banner-text">+1 BOX! EXTRA TURN!</span>
+        <span id="banner-text"></span>
       </div>
-
-      <!-- SVG Board with 8x8 dots, 7x7 boxes, 112 lines -->
-      <svg id="board-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Interactive 7 by 7 Dots and Boxes Grid"></svg>
+      <svg id="board-svg" xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-label="7x7 Dots and Boxes grid"></svg>
     </section>
-  </main>
 
-  <!-- Login & Profile Modal (JSON-based) -->
-  <div id="login-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-title">
-    <div class="modal-card modal-auth">
-      <h2 id="login-title" class="modal-title">👤 Player Profile</h2>
-      <p class="modal-subtitle">Stored locally in JSON format with stats tracking</p>
-
-      <form id="login-form" class="auth-form">
-        <div class="form-group">
-          <label for="input-username" class="form-label">Player Username</label>
-          <input type="text" id="input-username" class="form-input" placeholder="e.g. Vignesh" maxlength="16" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Select Avatar Emoji</label>
-          <div id="avatar-picker" class="avatar-grid">
-            <!-- Populated via JS -->
-          </div>
-        </div>
-
-        <div class="profile-stats-summary">
-          <div class="stat-box">
-            <span class="stat-num" id="profile-wins">0</span>
-            <span class="stat-lbl">Wins</span>
-          </div>
-          <div class="stat-box">
-            <span class="stat-num" id="profile-losses">0</span>
-            <span class="stat-lbl">Losses</span>
-          </div>
-          <div class="stat-box">
-            <span class="stat-num" id="profile-games">0</span>
-            <span class="stat-lbl">Matches</span>
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary">
-          💾 Save & Sign In
-        </button>
-      </form>
-      <button id="btn-close-login" class="btn btn-secondary mt-2">Close</button>
+    <!-- In-game controls -->
+    <div class="in-game-controls">
+      <button id="btn-undo" class="btn" disabled>↩️ Undo</button>
+      <button id="btn-new-game" class="btn">🔄 New Game</button>
     </div>
-  </div>
 
-  <!-- Online Multiplayer Lobby Modal -->
-  <div id="online-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="online-title">
-    <div class="modal-card modal-online">
-      <h2 id="online-title" class="modal-title">🌐 Online Multiplayer</h2>
-      <p class="modal-subtitle">Play live with a friend across devices via WebRTC room codes</p>
+  </div><!-- /#game-screen -->
 
-      <div class="online-options">
-        <!-- Host Room -->
-        <div class="online-card">
-          <h3>Host a Match</h3>
-          <p class="sub-text">Create a room and share code with a friend</p>
-          <button id="btn-host-room" class="btn btn-primary">
-            ➕ Create New Room
-          </button>
 
-          <div id="host-code-display" class="room-code-box" style="display: none;">
-            <span class="room-code-lbl">Your Room Code:</span>
-            <div class="code-and-copy">
-              <strong id="room-code-text" class="room-code">BOX-1234</strong>
-              <button id="btn-copy-code" class="btn btn-sm" title="Copy code">📋 Copy</button>
-            </div>
-            <div class="spinner-inline">
-              <span class="dot-pulse"></span>
-              <span>Waiting for opponent to connect...</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="divider-or"><span>OR</span></div>
-
-        <!-- Join Room -->
-        <div class="online-card">
-          <h3>Join a Match</h3>
-          <p class="sub-text">Enter your friend's 6-character room code</p>
-          <div class="join-input-group">
-            <input type="text" id="input-join-code" class="form-input" placeholder="e.g. BOX-8492" maxlength="10">
-            <button id="btn-join-room" class="btn btn-primary">
-              🚀 Join
-            </button>
-          </div>
-          <div id="join-status-msg" class="status-msg"></div>
-        </div>
-      </div>
-
-      <button id="btn-close-online" class="btn btn-secondary mt-3">Cancel</button>
-    </div>
-  </div>
-
-  <!-- Game Over Modal -->
-  <div id="game-over-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <!-- =====================================================================
+       GAME OVER MODAL
+  ====================================================================== -->
+  <div id="game-over-modal" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-card">
-      <h2 id="modal-title" class="modal-title">🎉 PLAYER 1 WINS!</h2>
-      <p id="modal-subtitle" class="modal-subtitle">Claimed the most boxes on the 7×7 board.</p>
+      <div id="winner-trophy" class="winner-trophy">🏆</div>
+      <h2 id="modal-winner-title" class="modal-title">Player Wins!</h2>
+      <p id="modal-subtitle" class="modal-subtitle">Great match!</p>
 
       <div class="modal-scores">
         <div class="modal-score-item">
-          <span id="modal-p1-label" class="modal-score-label">PLAYER 1</span>
+          <span id="modal-p1-avatar" class="modal-av">⚡</span>
+          <span id="modal-p1-label" class="modal-score-label">P1</span>
           <span id="modal-p1-score" class="modal-score-val p1">0</span>
         </div>
         <div class="modal-vs">vs</div>
         <div class="modal-score-item">
-          <span id="modal-p2-label" class="modal-score-label">PLAYER 2</span>
+          <span id="modal-p2-avatar" class="modal-av">🤖</span>
+          <span id="modal-p2-label" class="modal-score-label">P2</span>
           <span id="modal-p2-score" class="modal-score-val p2">0</span>
         </div>
       </div>
 
-      <button id="btn-play-again" class="btn btn-primary">
-        🎮 Play Again
-      </button>
+      <div class="modal-btns">
+        <button id="btn-play-again" class="btn btn-primary">🎮 Play Again</button>
+        <button id="btn-go-home" class="btn btn-secondary">🏠 Home</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm exit modal (online game) -->
+  <div id="exit-confirm-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card modal-sm">
+      <h2 class="modal-title" style="font-size:1.1rem;">⚠️ Leave Game?</h2>
+      <p class="modal-subtitle">In an online match, leaving gives your opponent the win.</p>
+      <div class="modal-btns">
+        <button id="btn-confirm-exit" class="btn btn-danger">Leave & Forfeit</button>
+        <button id="btn-cancel-exit" class="btn btn-secondary">Stay in Game</button>
+      </div>
     </div>
   </div>
 

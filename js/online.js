@@ -2,7 +2,7 @@ import { NETWORK_ACTIONS } from './constants.js';
 
 /**
  * Real-Time WebRTC Peer-to-Peer Multiplayer Engine using PeerJS
- * Enables zero-backend room creation, room joining, and bidirectional state sync.
+ * Handles room creation, joining, move sync, disconnection win, and presence checks.
  */
 export class OnlineMultiplayerEngine {
   constructor(options = {}) {
@@ -10,7 +10,7 @@ export class OnlineMultiplayerEngine {
     this.conn = null;
     this.isHost = false;
     this.roomId = null;
-    this.myPlayerIndex = 1; // Host is 1 (P1), Joiner is 2 (P2)
+    this.myPlayerIndex = 1;
     this.opponentProfile = null;
 
     this.onStatusChange = options.onStatusChange || (() => {});
@@ -20,19 +20,14 @@ export class OnlineMultiplayerEngine {
     this.onTimeoutReceived = options.onTimeoutReceived || (() => {});
     this.onRestartReceived = options.onRestartReceived || (() => {});
     this.onDisconnected = options.onDisconnected || (() => {});
+    this.onOpponentProfileReceived = options.onOpponentProfileReceived || (() => {});
   }
 
-  /**
-   * Generates a clean 6-digit room code e.g. "BOX-4821"
-   */
   generateRoomCode() {
     const num = Math.floor(1000 + Math.random() * 9000);
     return `BOX-${num}`;
   }
 
-  /**
-   * Initializes PeerJS instance
-   */
   initPeer(customId = null) {
     return new Promise((resolve, reject) => {
       if (this.peer && !this.peer.destroyed) {
@@ -41,12 +36,12 @@ export class OnlineMultiplayerEngine {
       }
 
       if (typeof window.Peer === 'undefined') {
-        reject(new Error('PeerJS library not loaded. Check internet connection.'));
+        reject(new Error('PeerJS library not loaded. Check your internet connection.'));
         return;
       }
 
       const peerConfig = {
-        debug: 1,
+        debug: 0,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -57,10 +52,9 @@ export class OnlineMultiplayerEngine {
 
       this.peer = customId ? new window.Peer(customId, peerConfig) : new window.Peer(peerConfig);
 
-      this.peer.on('open', (id) => {
-        resolve(id);
-      });
+      this.peer.on('open', (id) => resolve(id));
 
+      // Host listens for incoming connections
       this.peer.on('connection', (connection) => {
         this.conn = connection;
         this.setupConnectionHandlers();
@@ -68,75 +62,69 @@ export class OnlineMultiplayerEngine {
 
       this.peer.on('error', (err) => {
         console.error('Peer error:', err);
-        this.onStatusChange('error', err.message);
+        this.onStatusChange('error', 'Connection error: ' + err.message);
         reject(err);
       });
 
       this.peer.on('disconnected', () => {
-        this.onStatusChange('disconnected', 'Disconnected from matchmaking server');
+        this.onStatusChange('disconnected', 'Disconnected from signalling server. Reconnecting...');
+        // Try to reconnect to PeerJS server
+        if (this.peer && !this.peer.destroyed) {
+          try { this.peer.reconnect(); } catch (e) {}
+        }
       });
     });
   }
 
-  /**
-   * Host creates a new online room
-   */
   async createRoom(myProfile) {
     this.isHost = true;
-    this.myPlayerIndex = 1; // Host is Player 1
+    this.myPlayerIndex = 1;
+    this.myProfile = myProfile;
     const code = this.generateRoomCode();
-    const peerId = `dotsboxes-${code.toLowerCase()}`;
+    const peerId = `dotsboxes-room-${code.toLowerCase().replace('-', '')}`;
 
     try {
-      this.onStatusChange('creating', 'Creating room...');
+      this.onStatusChange('creating', 'Setting up room...');
       await this.initPeer(peerId);
-      this.roomId = code;
-      this.onRoomReady(code);
-      this.onStatusChange('waiting', `Room ready! Share code: ${code}`);
-      return code;
     } catch (e) {
-      // Fallback with auto-generated id
+      // Fallback with random ID if custom ID fails (already in use)
       await this.initPeer();
-      this.roomId = code;
-      this.onRoomReady(code);
-      return code;
     }
+    this.roomId = code;
+    this.onRoomReady(code);
+    this.onStatusChange('waiting', `Waiting for opponent to join...`);
+    return code;
   }
 
-  /**
-   * Player joins an existing room by code
-   */
   async joinRoom(roomCode, myProfile) {
     this.isHost = false;
-    this.myPlayerIndex = 2; // Joiner is Player 2
+    this.myPlayerIndex = 2;
+    this.myProfile = myProfile;
+
     const cleanCode = roomCode.trim().toUpperCase();
-    const targetPeerId = `dotsboxes-${cleanCode.toLowerCase()}`;
+    const targetPeerId = `dotsboxes-room-${cleanCode.toLowerCase().replace('-', '')}`;
 
     this.onStatusChange('connecting', `Connecting to room ${cleanCode}...`);
 
-    await this.initPeer();
-    this.conn = this.peer.connect(targetPeerId, {
-      reliable: true,
-      metadata: { profile: myProfile }
-    });
+    try {
+      await this.initPeer();
+    } catch (e) {
+      this.onStatusChange('error', 'Failed to initialize. Check internet connection.');
+      return;
+    }
 
+    this.conn = this.peer.connect(targetPeerId, { reliable: true });
     this.setupConnectionHandlers();
     this.roomId = cleanCode;
   }
 
-  /**
-   * Setup packet listeners on WebRTC data channel
-   */
   setupConnectionHandlers() {
     if (!this.conn) return;
 
     this.conn.on('open', () => {
-      this.onStatusChange('connected', 'Connected with opponent!');
-      
-      // Exchange profile handshake
-      if (this.myProfile) {
-        this.sendAction(NETWORK_ACTIONS.JOIN_ROOM, { profile: this.myProfile });
-      }
+      this.onStatusChange('connected', 'Connected!');
+      // Send our profile immediately on connection open
+      this.sendAction(NETWORK_ACTIONS.JOIN_ROOM, { profile: this.myProfile });
 
       this.onOpponentJoined({
         isHost: this.isHost,
@@ -149,6 +137,13 @@ export class OnlineMultiplayerEngine {
       if (!packet || !packet.action) return;
 
       switch (packet.action) {
+        case NETWORK_ACTIONS.JOIN_ROOM:
+          if (packet.payload && packet.payload.profile) {
+            this.opponentProfile = packet.payload.profile;
+            this.onOpponentProfileReceived(packet.payload.profile);
+          }
+          break;
+
         case NETWORK_ACTIONS.MAKE_MOVE:
           this.onMoveReceived(packet.payload);
           break;
@@ -161,31 +156,23 @@ export class OnlineMultiplayerEngine {
           this.onRestartReceived();
           break;
 
-        case NETWORK_ACTIONS.JOIN_ROOM:
-          if (packet.payload && packet.payload.profile) {
-            this.opponentProfile = packet.payload.profile;
-          }
-          break;
-
         default:
           break;
       }
     });
 
     this.conn.on('close', () => {
-      this.onStatusChange('closed', 'Opponent disconnected');
+      this.onStatusChange('closed', 'Opponent left the game.');
       this.onDisconnected();
     });
 
     this.conn.on('error', (err) => {
       console.error('Connection error:', err);
-      this.onStatusChange('error', 'Connection error');
+      this.onStatusChange('error', 'Connection lost.');
+      this.onDisconnected();
     });
   }
 
-  /**
-   * Broadcasts action payload to opponent
-   */
   sendAction(action, payload = {}) {
     if (this.conn && this.conn.open) {
       this.conn.send({ action, payload, timestamp: Date.now() });
@@ -204,15 +191,13 @@ export class OnlineMultiplayerEngine {
     this.sendAction(NETWORK_ACTIONS.RESTART_REQUEST);
   }
 
+  isConnected() {
+    return !!(this.conn && this.conn.open);
+  }
+
   disconnect() {
-    if (this.conn) {
-      this.conn.close();
-      this.conn = null;
-    }
-    if (this.peer) {
-      this.peer.destroy();
-      this.peer = null;
-    }
+    if (this.conn) { try { this.conn.close(); } catch (e) {} this.conn = null; }
+    if (this.peer) { try { this.peer.destroy(); } catch (e) {} this.peer = null; }
     this.roomId = null;
   }
 }
