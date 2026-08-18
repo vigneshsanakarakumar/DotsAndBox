@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="A modern, polished 7x7 Dots and Boxes game with crisp vector graphics, intelligent AI, and smooth animations.">
+  <title>Dots & Boxes (7×7)</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <main class="game-container">
+    <!-- Header -->
+    <header class="game-header">
+      <h1 class="game-title">
+        DOTS & BOXES
+        <span class="game-badge">7×7</span>
+      </h1>
+    </header>
+
+    <!-- Top Control Bar -->
+    <section class="game-controls" aria-label="Game controls">
+      <div class="control-group">
+        <label for="mode-selector" class="sr-only" style="display:none">Mode</label>
+        <select id="mode-selector" class="select-dropdown" title="Select Game Mode">
+          <option value="pass_and_play">👥 2 Players (Pass & Play)</option>
+          <option value="vs_ai_easy">🤖 vs AI (Casual)</option>
+          <option value="vs_ai_smart">🧠 vs AI (Smart)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <button id="btn-undo" class="btn" title="Undo last move" disabled>
+          ↩️ Undo
+        </button>
+        <button id="btn-mute" class="btn" title="Toggle sound">
+          🔊 Sound: On
+        </button>
+        <button id="btn-new-game" class="btn" title="Restart Game">
+          🔄 New Game
+        </button>
+      </div>
+    </section>
+
+    <!-- Scoreboard -->
+    <section class="scoreboard" aria-label="Scoreboard">
+      <!-- Player 1 Card -->
+      <div id="p1-card" class="player-card p1 active">
+        <div class="player-info">
+          <div class="player-avatar">P1</div>
+          <div>
+            <div class="player-name">Player 1</div>
+            <div class="turn-tag">Active Turn</div>
+          </div>
+        </div>
+        <div id="p1-score" class="player-score">0</div>
+      </div>
+
+      <!-- Player 2 Card -->
+      <div id="p2-card" class="player-card p2">
+        <div class="player-info">
+          <div class="player-avatar">P2</div>
+          <div>
+            <div id="p2-name" class="player-name">Player 2</div>
+            <div class="turn-tag">Active Turn</div>
+          </div>
+        </div>
+        <div id="p2-score" class="player-score">0</div>
+      </div>
+    </section>
+
+    <!-- Status Bar & Progress -->
+    <section class="status-bar" aria-label="Game status">
+      <div id="turn-indicator" class="turn-indicator player-1-active">
+        <span class="turn-dot player-1-dot"></span>
+        <span>Player 1's Turn</span>
+      </div>
+      <div class="boxes-stats">
+        <span>Claimed: <strong id="boxes-completed">0</strong>/49</span>
+        <span>Left: <strong id="boxes-left">49</strong></span>
+      </div>
+    </section>
+
+    <!-- Progress Bar -->
+    <div class="progress-container" title="Board ownership breakdown">
+      <div id="progress-p1" class="progress-p1" style="width: 0%;"></div>
+      <div id="progress-p2" class="progress-p2" style="width: 0%;"></div>
+    </div>
+
+    <!-- Board Area -->
+    <section class="board-wrapper" aria-label="Dots and Boxes board">
+      <!-- Floating notification banner for completed boxes and extra turns -->
+      <div id="game-banner" class="game-banner" role="status">
+        <span id="banner-text">+1 BOX! EXTRA TURN!</span>
+      </div>
+
+      <!-- SVG Board with 8x8 dots, 7x7 boxes, 112 lines -->
+      <svg id="board-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Interactive 7 by 7 Dots and Boxes Grid"></svg>
+    </section>
+  </main>
+
+  <!-- Game Over Modal -->
+  <div id="game-over-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <h2 id="modal-title" class="modal-title">🎉 PLAYER 1 WINS!</h2>
+      <p id="modal-subtitle" class="modal-subtitle">Claimed the most boxes on the 7×7 board.</p>
+
+      <div class="modal-scores">
+        <div class="modal-score-item">
+          <span class="modal-score-label">PLAYER 1</span>
+          <span id="modal-p1-score" class="modal-score-val p1">0</span>
+        </div>
+        <div class="modal-vs">vs</div>
+        <div class="modal-score-item">
+          <span class="modal-score-label">PLAYER 2</span>
+          <span id="modal-p2-score" class="modal-score-val p2">0</span>
+        </div>
+      </div>
+
+      <button id="btn-play-again" class="btn btn-primary">
+        🎮 Play Again
+      </button>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
