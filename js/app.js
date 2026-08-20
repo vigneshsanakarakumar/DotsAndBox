@@ -173,37 +173,59 @@ function createOnlineEngine() {
   if (onlineEngine) { onlineEngine.disconnect(); onlineEngine = null; }
 
   onlineEngine = new OnlineMultiplayerEngine({
+
     onStatusChange(status, msg) {
       rcStatusText.textContent = msg;
       joinStatus.textContent   = msg;
     },
+
     onRoomReady(code) {
       rcValue.textContent = code;
       roomCodeBox.classList.remove('hidden');
     },
+
+    // Called when the connection is established and seats are confirmed
     onOpponentJoined(info) {
+      // info.playerIndex = MY seat (1 = host, 2 = guest)
       state.myOnlineIndex = info.playerIndex;
-      closeLobby();
+      // Transition: close lobby → start game board
+      showScreen(S_GAME);
       startOnlineGame();
     },
+
+    // Called when the opponent's profile packet arrives
     onOpponentProfileReceived(profile) {
+      // Opponent occupies the OTHER seat
       const oppIdx = state.myOnlineIndex === 1 ? 2 : 1;
-      const nameEl  = oppIdx === 1 ? p1Name  : p2Name;
-      const avEl    = oppIdx === 1 ? p1Avatar : p2Avatar;
+      const nameEl = oppIdx === 1 ? p1Name  : p2Name;
+      const avEl   = oppIdx === 1 ? p1Avatar : p2Avatar;
       nameEl.textContent = abbrev(profile.username || 'Opponent');
-      avEl.textContent   = profile.username ? profile.username.slice(0,2).toUpperCase() : 'OP';
+      avEl.textContent   = profile.username
+        ? profile.username.slice(0, 2).toUpperCase()
+        : 'OP';
       updateHUD();
     },
-    onMoveReceived(move) { processMove(move.type, move.row, move.col, false); },
-    onTimeoutReceived()  { handleTurnTimeout(true); },
-    onRestartReceived()  { resetGameState(); },
-    onDisconnected()     {
+
+    onMoveReceived(move) {
+      processMove(move.type, move.row, move.col, false);
+    },
+
+    onTimeoutReceived() {
+      handleTurnTimeout(true /* from remote — don't re-broadcast */);
+    },
+
+    onRestartReceived() {
+      resetGameState();
+    },
+
+    onDisconnected() {
       if (state.game.isGameOver) return;
       turnTimer.stop();
       showDisconnectWin(state.myOnlineIndex);
     }
   });
 }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    AUTH SCREEN EVENTS
@@ -544,8 +566,9 @@ function startOnlineGame() {
 
   btnUndo.style.display = 'none';
   resetGameState();
-  showScreen(S_GAME);
+  // showScreen(S_GAME) already called in onOpponentJoined callback
 }
+
 
 function resetGameState() {
   state.game.reset();
@@ -769,7 +792,11 @@ function showBanner(msg, player, type = '') {
   bannerTxt.textContent = msg;
   const cls = type === 'neutral' ? 'neutral' : `p${player}-banner`;
   banner.className = `banner show ${cls}`;
-  state.bannerTo = setTimeout(() => banner.classList.remove('show'), 1400);
+  // After 1.4s: remove 'show', then after fade restore 'hidden'
+  state.bannerTo = setTimeout(() => {
+    banner.classList.remove('show');
+    setTimeout(() => { banner.className = 'banner hidden'; }, 250);
+  }, 1400);
 }
 function clearBanner() {
   if (state.bannerTo) clearTimeout(state.bannerTo);
