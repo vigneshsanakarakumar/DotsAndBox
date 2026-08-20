@@ -26,16 +26,22 @@
   --border-md: rgba(255,255,255,0.13);
   --border-hi: rgba(255,255,255,0.22);
 
-  /* Player colors */
-  --p1:        #3b82f6;         /* blue-500 */
+  /* Player colors — fixed per seat, set also from JS via PLAYER_COLORS */
+  --p1:        #3b82f6;          /* blue    */
   --p1-dim:    rgba(59,130,246,.12);
-  --p1-mid:    rgba(59,130,246,.35);
-  --p1-glow:   rgba(59,130,246,.45);
+  --p1-bd:     #2563eb;
 
-  --p2:        #dc2626;         /* red-600 - dim red */
+  --p2:        #dc2626;          /* dim red */
   --p2-dim:    rgba(220,38,38,.12);
-  --p2-mid:    rgba(220,38,38,.35);
-  --p2-glow:   rgba(220,38,38,.45);
+  --p2-bd:     #b91c1c;
+
+  --p3:        #16a34a;          /* green   */
+  --p3-dim:    rgba(22,163,74,.12);
+  --p3-bd:     #15803d;
+
+  --p4:        #d97706;          /* amber   */
+  --p4-dim:    rgba(217,119,6,.12);
+  --p4-bd:     #b45309;
 
   /* Status */
   --green:  #22c55e;
@@ -929,3 +935,78 @@ body {
   .sc-score   { font-size: 1.4rem; }
   .go-trophy  { font-size: 1.8rem; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   P3 / P4 PLAYER CARDS
+───────────────────────────────────────────────────────────────────────────── */
+.score-card.p3 { border-color: var(--p3-bd, #15803d); }
+.score-card.p3.active {
+  border-color: var(--p3);
+  background: linear-gradient(135deg, var(--p3-dim) 0%, var(--bg-2) 100%);
+  box-shadow: 0 0 0 1px var(--p3-bd);
+}
+.p3-av { background: var(--p3); color: #fff; }
+
+.score-card.p4 { border-color: var(--p4-bd, #b45309); }
+.score-card.p4.active {
+  border-color: var(--p4);
+  background: linear-gradient(135deg, var(--p4-dim) 0%, var(--bg-2) 100%);
+  box-shadow: 0 0 0 1px var(--p4-bd);
+}
+.p4-av { background: var(--p4); color: #fff; }
+
+/* Lines / boxes drawn by P3 or P4 */
+.line-group.drawn.player-3 .grid-line { stroke: var(--p3); }
+.line-group.drawn.player-4 .grid-line { stroke: var(--p4); }
+.box-item.claimed.player-3 .box-rect  { fill: var(--p3-dim); }
+.box-item.claimed.player-4 .box-rect  { fill: var(--p4-dim); }
+.box-item.claimed.player-3 .box-label { fill: var(--p3); }
+.box-item.claimed.player-4 .box-label { fill: var(--p4); }
+
+/* Banner colours for P3/P4 */
+.banner.p3-banner { background: var(--p3); }
+.banner.p4-banner { background: var(--p4); }
+
+/* Turn indicator dots for P3/P4 */
+.turn-ind.p3-ind .ti-dot { background: var(--p3); }
+.turn-ind.p4-ind .ti-dot { background: var(--p4); }
+.turn-ind.p3-ind { border-left-color: var(--p3); }
+.turn-ind.p4-ind { border-left-color: var(--p4); }
+
+/* 4-player scoreboard: 2×2 grid */
+#scoreboard:has(.score-card.p3:not(.hidden)) {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ROOM SIZE PICKER
+───────────────────────────────────────────────────────────────────────────── */
+.room-size-wrap {
+  margin-bottom: 14px;
+}
+.size-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.size-tab {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: .8rem;
+  font-weight: 600;
+  font-family: var(--ff-body);
+  background: var(--bg-3);
+  border: 1px solid var(--border-md);
+  border-radius: 8px;
+  color: var(--silver-3);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.size-tab:hover { border-color: var(--border-hi); color: var(--silver-1); }
+.size-tab.active {
+  background: var(--p1-dim, rgba(59,130,246,.12));
+  border-color: var(--p1);
+  color: var(--p1);
+}
+

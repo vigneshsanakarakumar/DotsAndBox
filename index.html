@@ -187,6 +187,16 @@
     <div id="lobby-online" class="lobby-panel hidden">
       <h2 class="lobby-title">Online Match</h2>
 
+      <!-- Room size picker (only shown when hosting) -->
+      <div id="room-size-wrap" class="room-size-wrap">
+        <p class="half-label">Room size</p>
+        <div class="size-tabs">
+          <button class="size-tab active" data-size="2">2 Players</button>
+          <button class="size-tab" data-size="3">3 Players</button>
+          <button class="size-tab" data-size="4">4 Players</button>
+        </div>
+      </div>
+
       <div class="online-halves">
         <div class="online-half">
           <p class="half-label">Host a room</p>
@@ -243,8 +253,8 @@
     <div class="timer-track"><div id="timer-bar" class="timer-bar" style="width:100%"></div></div>
   </div>
 
-  <!-- Scoreboard -->
-  <div class="scoreboard">
+  <!-- Scoreboard (up to 4 players — P3/P4 hidden until room needs them) -->
+  <div class="scoreboard" id="scoreboard">
     <div id="p1-card" class="score-card p1 active">
       <div class="sc-left">
         <div id="p1-avatar" class="sc-avatar p1-av">P1</div>
@@ -264,6 +274,26 @@
         </div>
       </div>
       <span id="p2-score" class="sc-score">0</span>
+    </div>
+    <div id="p3-card" class="score-card p3 hidden">
+      <div class="sc-left">
+        <div id="p3-avatar" class="sc-avatar p3-av">P3</div>
+        <div class="sc-info">
+          <span id="p3-name" class="sc-name">Player 3</span>
+          <span class="sc-turn-tag">Your Turn</span>
+        </div>
+      </div>
+      <span id="p3-score" class="sc-score">0</span>
+    </div>
+    <div id="p4-card" class="score-card p4 hidden">
+      <div class="sc-left">
+        <div id="p4-avatar" class="sc-avatar p4-av">P4</div>
+        <div class="sc-info">
+          <span id="p4-name" class="sc-name">Player 4</span>
+          <span class="sc-turn-tag">Your Turn</span>
+        </div>
+      </div>
+      <span id="p4-score" class="sc-score">0</span>
     </div>
   </div>
 

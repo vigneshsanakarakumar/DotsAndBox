@@ -53,11 +53,16 @@ export const TIMER_CONFIG = {
 };
 
 export const NETWORK_ACTIONS = {
-  JOIN_ROOM: 'join_room',
-  ROOM_READY: 'room_ready',
-  MAKE_MOVE: 'make_move',
-  TIMEOUT_SKIP: 'timeout_skip',
-  RESTART_REQUEST: 'restart_request',
-  RESTART_ACCEPT: 'restart_accept',
-  CHAT_MESSAGE: 'chat_message'
+  JOIN_ROOM:           'join_room',
+  ROOM_READY:          'room_ready',
+  ROOM_FULL:           'room_full',
+  SEAT_ASSIGN:         'seat_assign',
+  PLAYER_JOINED:       'player_joined',
+  PLAYER_LIST_UPDATE:  'player_list_update',
+  GAME_START:          'game_start',
+  MAKE_MOVE:           'make_move',
+  TIMEOUT_SKIP:        'timeout_skip',
+  RESTART_REQUEST:     'restart_request',
+  RESTART_ACCEPT:      'restart_accept',
 };
+
