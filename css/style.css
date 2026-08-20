@@ -695,10 +695,15 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .05em;
-  display: none;
+  display: none;        /* hidden by default; JS controls display + text */
 }
+/* Active player — each seat's own color */
 .score-card.p1.active .sc-turn-tag { display: block; color: var(--p1); }
 .score-card.p2.active .sc-turn-tag { display: block; color: var(--p2); }
+.score-card.p3.active .sc-turn-tag { display: block; color: var(--p3); }
+.score-card.p4.active .sc-turn-tag { display: block; color: var(--p4); }
+/* Waiting state (set by JS) */
+.score-card:not(.active) .sc-turn-tag { display: block; color: var(--silver-4); }
 
 .sc-score {
   font-family: var(--ff-mono);
@@ -900,6 +905,26 @@ body {
 .go-vs  { font-size: .72rem; color: var(--silver-4); font-weight: 700; }
 
 .modal-btn-col { display: flex; flex-direction: column; gap: 8px; }
+
+/* Match statistics block inside winner modal */
+.go-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-3);
+  border-radius: var(--r4);
+  padding: 10px 12px;
+  text-align: left;
+}
+.go-stats:empty { display: none; }
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .75rem;
+  color: var(--silver-3);
+}
+.stat-row strong { color: var(--silver-1); font-weight: 700; }
 
 /* ─────────────────────────────────────────────────────────────────────────
    KEYFRAMES

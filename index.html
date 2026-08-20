@@ -337,26 +337,27 @@
      MODALS
 ───────────────────────────────────────────────────────────────────────────── -->
 
-<!-- Game Over -->
+<!-- Game Over — JS fills content; blank initially so scrapers see nothing stale -->
 <div id="modal-gameover" class="modal-bg" role="dialog" aria-modal="true">
   <div class="modal-box">
-    <div id="go-trophy" class="go-trophy">🏆</div>
-    <h2 id="go-title" class="go-title">Player Wins!</h2>
-    <p  id="go-sub"   class="go-sub">Great match!</p>
+    <div id="go-trophy" class="go-trophy" aria-hidden="true"></div>
+    <h2 id="go-title" class="go-title"></h2>
+    <p  id="go-sub"   class="go-sub"></p>
     <div class="go-scores">
       <div class="go-score-item">
-        <span id="go-p1-name"  class="go-pname">P1</span>
-        <span id="go-p1-score" class="go-pscore p1-col">0</span>
+        <span id="go-p1-name"  class="go-pname"></span>
+        <span id="go-p1-score" class="go-pscore p1-col"></span>
       </div>
       <span class="go-vs">vs</span>
       <div class="go-score-item">
-        <span id="go-p2-name"  class="go-pname">P2</span>
-        <span id="go-p2-score" class="go-pscore p2-col">0</span>
+        <span id="go-p2-name"  class="go-pname"></span>
+        <span id="go-p2-score" class="go-pscore p2-col"></span>
       </div>
     </div>
+    <div id="go-stats" class="go-stats"></div>
     <div class="modal-btn-col">
-      <button id="btn-play-again" class="btn-primary full-w">↺ Play Again</button>
-      <button id="btn-go-home"    class="btn-ghost  full-w">⌂ Home</button>
+      <button id="btn-play-again" class="btn-primary full-w">&#8635; Play Again</button>
+      <button id="btn-go-home"    class="btn-ghost  full-w">&#8962; Home</button>
     </div>
   </div>
 </div>
@@ -367,8 +368,21 @@
     <h2 class="go-title" style="font-size:1rem">Leave the match?</h2>
     <p class="go-sub">In an online match, leaving counts as a loss.</p>
     <div class="modal-btn-col">
-      <button id="btn-confirm-exit" class="btn-danger full-w">Leave & Forfeit</button>
+      <button id="btn-confirm-exit" class="btn-danger full-w">Leave &amp; Forfeit</button>
       <button id="btn-cancel-exit"  class="btn-ghost  full-w">Stay</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Game Confirm — prevents accidental progress loss -->
+<div id="modal-newgame" class="modal-bg" role="dialog" aria-modal="true">
+  <div class="modal-box modal-sm">
+    <div style="font-size:1.6rem" aria-hidden="true">&#8635;</div>
+    <h2 class="go-title" style="font-size:1rem">Start a new game?</h2>
+    <p class="go-sub">Current match progress will be lost.</p>
+    <div class="modal-btn-col">
+      <button id="btn-confirm-new" class="btn-danger full-w">Start New Game</button>
+      <button id="btn-cancel-new"  class="btn-ghost  full-w">Keep Playing</button>
     </div>
   </div>
 </div>
